@@ -83,12 +83,37 @@ describe('YouTube player lifecycle', () => {
     await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(1));
     expect(fetchMock).toHaveBeenCalledWith('https://eligibility.example/v1/videos/dQw4w9WgXcQ/eligibility');
     expect(screen.getByRole('alert').textContent).toContain('45 секунд');
+    expect(screen.queryByText('Сначала загрузи видео, чтобы управлять воспроизведением.')).toBeNull();
     expect(input.value).toBe(url);
     expect(MockYouTubePlayer.instances).toHaveLength(0);
 
     fireEvent.click(loadButton);
     await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(2));
     expect(input.value).toBe(url);
+  });
+
+  it('shows a checking status instead of the unloaded-player hint while the service responds', async () => {
+    vi.stubEnv('VITE_ELIGIBILITY_API', 'https://eligibility.example');
+    let resolveFetch!: (value: any) => void;
+    const pendingResponse = new Promise<any>((resolve) => { resolveFetch = resolve; });
+    const fetchMock = vi.fn().mockReturnValue(pendingResponse);
+    vi.stubGlobal('fetch', fetchMock);
+    render(<App />);
+    fireEvent.change(screen.getByLabelText('ССЫЛКА НА ВИДЕО'), { target: { value: 'https://youtu.be/dQw4w9WgXcQ' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Загрузить видео' }));
+
+    await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(1));
+    expect(screen.getByText('Проверяю доступность видео…')).toBeTruthy();
+    expect(screen.queryByText('Сначала загрузи видео, чтобы управлять воспроизведением.')).toBeNull();
+
+    resolveFetch({
+      ok: false,
+      headers: { get: () => '30' },
+      json: vi.fn().mockResolvedValue({ error: 'upstream_unavailable', retryable: true }),
+    });
+    await waitFor(() => expect(screen.getByRole('alert').textContent).toContain('30 секунд'));
+    expect(screen.queryByText('Проверяю доступность видео…')).toBeNull();
+    expect(screen.queryByText('Сначала загрузи видео, чтобы управлять воспроизведением.')).toBeNull();
   });
 
   it('shows quota guidance without an immediate retry delay', async () => {
