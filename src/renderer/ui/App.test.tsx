@@ -70,6 +70,106 @@ describe('YouTube player lifecycle', () => {
   });
   afterEach(() => { cleanup(); vi.useRealTimers(); vi.unstubAllGlobals(); vi.unstubAllEnvs(); });
 
+  it('shows the remembered video after remount without fetching or starting playback', async () => {
+    vi.stubEnv('VITE_ELIGIBILITY_API', 'https://eligibility.example');
+    const fetchMock = vi.fn().mockResolvedValue({ ok: true, json: vi.fn().mockResolvedValue({ eligible: true }) });
+    vi.stubGlobal('fetch', fetchMock);
+    const first = render(<App />);
+    await act(async () => { window.onYouTubeIframeAPIReady?.(); });
+    fireEvent.change(screen.getByLabelText('ССЫЛКА НА ВИДЕО'), { target: { value: 'https://youtu.be/dQw4w9WgXcQ' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Загрузить видео' }));
+    await waitFor(() => expect(localStorage.getItem('lastVideoId')).toBe('dQw4w9WgXcQ'));
+    expect(screen.getByRole('button', { name: /dQw4w9WgXcQ/ })).toBeTruthy();
+    first.unmount();
+    MockYouTubePlayer.instances = [];
+    fetchMock.mockClear();
+    render(<App />);
+    expect(screen.getByRole('button', { name: /dQw4w9WgXcQ/ })).toBeTruthy();
+    expect(fetchMock).not.toHaveBeenCalled();
+    expect(MockYouTubePlayer.instances).toHaveLength(0);
+    expect(screen.getByRole('button', { name: 'Играть' }).hasAttribute('disabled')).toBe(true);
+  });
+
+  it('rechecks a remembered video and restores its settings without autoplay', async () => {
+    localStorage.setItem('lastVideoId', 'dQw4w9WgXcQ');
+    localStorage.setItem('practice:dQw4w9WgXcQ', JSON.stringify({ bpm: 92, speed: 0.75, loopA: 12, loopB: 28, volume: 0.6 }));
+    vi.stubEnv('VITE_ELIGIBILITY_API', 'https://eligibility.example');
+    const fetchMock = vi.fn().mockResolvedValue({ ok: true, json: vi.fn().mockResolvedValue({ eligible: true }) });
+    vi.stubGlobal('fetch', fetchMock);
+    render(<App />);
+    await act(async () => { window.onYouTubeIframeAPIReady?.(); });
+    fireEvent.click(screen.getByRole('button', { name: /dQw4w9WgXcQ/ }));
+    await waitFor(() => expect(MockYouTubePlayer.instances).toHaveLength(1));
+    expect(fetchMock).toHaveBeenCalledWith('https://eligibility.example/v1/videos/dQw4w9WgXcQ/eligibility');
+    const player = MockYouTubePlayer.instances[0];
+    act(() => player.options.events.onReady({ target: player }));
+    expect(player.setPlaybackRate).toHaveBeenCalledWith(0.75);
+    expect(screen.getByText('92')).toBeTruthy();
+    expect(player.playVideo).not.toHaveBeenCalled();
+  });
+
+  it('keeps the remembered video when replacement is rejected', async () => {
+    localStorage.setItem('lastVideoId', 'dQw4w9WgXcQ');
+    vi.stubEnv('VITE_ELIGIBILITY_API', 'https://eligibility.example');
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue({ ok: true, json: vi.fn().mockResolvedValue({ eligible: false, reason: 'not_embeddable' }) }));
+    render(<App />);
+    fireEvent.change(screen.getByLabelText('ССЫЛКА НА ВИДЕО'), { target: { value: 'https://youtu.be/oHg5SJYRHA0' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Загрузить видео' }));
+    await screen.findByRole('alert');
+    expect(localStorage.getItem('lastVideoId')).toBe('dQw4w9WgXcQ');
+    expect(screen.getByRole('button', { name: /dQw4w9WgXcQ/ })).toBeTruthy();
+    expect(MockYouTubePlayer.instances).toHaveLength(0);
+  });
+
+  it('plays the same ready remembered video without another eligibility check', async () => {
+    vi.stubEnv('VITE_ELIGIBILITY_API', 'https://eligibility.example');
+    const fetchMock = vi.fn().mockResolvedValue({ ok: true, json: vi.fn().mockResolvedValue({ eligible: true }) });
+    vi.stubGlobal('fetch', fetchMock);
+    render(<App />);
+    await act(async () => { window.onYouTubeIframeAPIReady?.(); });
+    fireEvent.change(screen.getByLabelText('ССЫЛКА НА ВИДЕО'), { target: { value: 'https://youtu.be/dQw4w9WgXcQ' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Загрузить видео' }));
+    await waitFor(() => expect(MockYouTubePlayer.instances).toHaveLength(1));
+    const player = MockYouTubePlayer.instances[0];
+    act(() => player.options.events.onReady({ target: player }));
+    fireEvent.click(screen.getByRole('button', { name: /dQw4w9WgXcQ/ }));
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    expect(player.playVideo).toHaveBeenCalledTimes(1);
+    expect(MockYouTubePlayer.instances).toHaveLength(1);
+  });
+
+  it('clears only the remembered pointer and leaves saved video settings', () => {
+    localStorage.setItem('lastVideoId', 'dQw4w9WgXcQ');
+    const settings = JSON.stringify({ bpm: 92, speed: 0.75, loopA: 12, loopB: 28, volume: 0.6 });
+    localStorage.setItem('practice:dQw4w9WgXcQ', settings);
+    render(<App />);
+    fireEvent.click(screen.getByRole('button', { name: 'Очистить последнее видео' }));
+    expect(localStorage.getItem('lastVideoId')).toBeNull();
+    expect(localStorage.getItem('practice:dQw4w9WgXcQ')).toBe(settings);
+    expect(screen.getByText('Последнее видео появится здесь')).toBeTruthy();
+  });
+
+  it('keeps the remembered card and playback available when clearing storage fails', async () => {
+    localStorage.setItem('lastVideoId', 'dQw4w9WgXcQ');
+    render(<App />);
+    await act(async () => { window.onYouTubeIframeAPIReady?.(); });
+    fireEvent.change(screen.getByLabelText('ССЫЛКА НА ВИДЕО'), { target: { value: 'https://youtu.be/dQw4w9WgXcQ' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Загрузить видео' }));
+    const player = MockYouTubePlayer.instances[0];
+    act(() => player.options.events.onReady({ target: player }));
+    const removeItem = vi.spyOn(Storage.prototype, 'removeItem').mockImplementation(() => { throw new Error('storage unavailable'); });
+    try {
+      fireEvent.click(screen.getByRole('button', { name: 'Очистить последнее видео' }));
+      expect(localStorage.getItem('lastVideoId')).toBe('dQw4w9WgXcQ');
+      expect(screen.getByRole('button', { name: /dQw4w9WgXcQ/ })).toBeTruthy();
+      expect(screen.getByRole('alert').textContent).toContain('Не удалось убрать последнее видео');
+      fireEvent.click(screen.getByRole('button', { name: 'Играть' }));
+      expect(player.playVideo).toHaveBeenCalledTimes(1);
+    } finally {
+      removeItem.mockRestore();
+    }
+  });
+
   it('shows a retry delay, keeps the pasted link, and retries only after another click', async () => {
     vi.stubEnv('VITE_ELIGIBILITY_API', 'https://eligibility.example');
     const fetchMock = vi.fn().mockResolvedValue({
@@ -85,9 +185,8 @@ describe('YouTube player lifecycle', () => {
     const loadButton = screen.getByRole('button', { name: 'Загрузить видео' });
 
     fireEvent.click(loadButton);
-    await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(1));
     expect(fetchMock).toHaveBeenCalledWith('https://eligibility.example/v1/videos/dQw4w9WgXcQ/eligibility');
-    expect(screen.getByRole('alert').textContent).toContain('45 секунд');
+    expect((await screen.findByRole('alert')).textContent).toContain('45 секунд');
     expect(screen.queryByText('Сначала загрузи видео, чтобы управлять воспроизведением.')).toBeNull();
     expect(input.value).toBe(url);
     expect(MockYouTubePlayer.instances).toHaveLength(0);
