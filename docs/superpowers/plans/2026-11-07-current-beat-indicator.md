@@ -50,13 +50,13 @@
 - Modify: `src/renderer/ui/styles.css`
 - Test: `src/renderer/ui/App.test.tsx`
 
-- [ ] Add component tests for 3/4 and 4/4 marker counts, active downbeat and other beat, inactive states, and accessible labels.
-- [ ] Run focused tests and confirm the active-beat expectations fail before implementation.
-- [ ] Render meter-sized markers, highlight the active beat from `current`, `firstBeat`, and BPM, and dim them unless the player is ready, playing, and the metronome is enabled.
-- [ ] Add minimal states for muted, active mint, and active amber markers; keep the existing layout and sizing.
-- [ ] Run the focused component tests.
-- [ ] Run full tests, production build, and `git diff --check`.
-- [ ] Commit Task 2.
+- [x] Add component tests for 3/4 and 4/4 marker counts, active downbeat and other beat, inactive states, and accessible labels.
+- [x] Run focused tests and confirm the active-beat expectations fail before implementation.
+- [x] Render meter-sized markers, highlight the active beat from `current`, `firstBeat`, and BPM, and dim them unless the player is ready, playing, and the metronome is enabled.
+- [x] Add minimal states for muted, active mint, and active amber markers; keep the existing layout and sizing.
+- [x] Run the focused component tests.
+- [x] Run full tests (109 passed), production build, and `git diff --check`.
+- [x] Commit Task 2.
 
 ### Task 3: Review and PR
 

@@ -613,4 +613,78 @@ describe('YouTube player lifecycle', () => {
     expect(MockYouTubePlayer.instances).toHaveLength(1);
     expect(input.value).toBe(url);
   });
+
+  it('renders three or four inactive beat markers for the selected meter', () => {
+    render(<App />);
+    const beatLine = screen.getByRole('img', { name: 'Метроном неактивен' });
+    expect(beatLine.getAttribute('aria-live')).toBe('off');
+    expect(beatLine.querySelectorAll('span')).toHaveLength(4);
+    fireEvent.click(screen.getByRole('button', { name: 'Размер такта 3/4' }));
+    expect(screen.getByRole('img', { name: 'Метроном неактивен' }).querySelectorAll('span')).toHaveLength(3);
+    expect(beatLine.querySelectorAll('.is-active')).toHaveLength(0);
+  });
+
+  it('follows the actual video position through the selected meter and playback-rate changes', async () => {
+    vi.useFakeTimers();
+    localStorage.setItem('practice:dQw4w9WgXcQ', JSON.stringify({
+      bpm: 100, firstBeat: 0, timeSignature: 3, speed: 1, loopA: null, loopB: null, metronomeEnabled: false, volume: 0.35,
+    }));
+    render(<App />);
+    await act(async () => { window.onYouTubeIframeAPIReady?.(); });
+    fireEvent.change(screen.getByLabelText('ССЫЛКА НА ВИДЕО'), { target: { value: 'https://youtu.be/dQw4w9WgXcQ' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Загрузить видео' }));
+    const player = MockYouTubePlayer.instances[0];
+    act(() => player.options.events.onReady({ target: player }));
+    fireEvent.change(screen.getByRole('slider', { name: 'Позиция видео' }), { target: { value: '1.2' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Играть' }));
+    fireEvent.click(screen.getByRole('switch'));
+
+    let beatLine = screen.getByRole('img', { name: 'Текущая доля: 3 из 3' });
+    expect(beatLine.querySelectorAll('span')).toHaveLength(3);
+    expect(beatLine.querySelectorAll('span')[2].classList.contains('is-active')).toBe(true);
+    expect(beatLine.querySelectorAll('span')[2].classList.contains('is-downbeat')).toBe(false);
+
+    fireEvent.click(screen.getByRole('button', { name: /1×/ }));
+    expect(player.setPlaybackRate).toHaveBeenLastCalledWith(1.25);
+    player.currentTime = 1.8;
+    await act(async () => { await vi.advanceTimersByTimeAsync(80); });
+    beatLine = screen.getByRole('img', { name: 'Текущая доля: 1 из 3' });
+    expect(beatLine.querySelectorAll('span')[0].classList.contains('is-active')).toBe(true);
+    expect(beatLine.querySelectorAll('span')[0].classList.contains('is-downbeat')).toBe(true);
+
+    player.currentTime = 2.4;
+    await act(async () => { await vi.advanceTimersByTimeAsync(80); });
+    beatLine = screen.getByRole('img', { name: 'Текущая доля: 2 из 3' });
+    expect(beatLine.querySelectorAll('span')[1].classList.contains('is-active')).toBe(true);
+  });
+
+  it('dims every beat marker during buffering, pause, and when the metronome is off', async () => {
+    vi.useFakeTimers();
+    render(<App />);
+    await act(async () => { window.onYouTubeIframeAPIReady?.(); });
+    fireEvent.change(screen.getByLabelText('ССЫЛКА НА ВИДЕО'), { target: { value: 'https://youtu.be/dQw4w9WgXcQ' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Загрузить видео' }));
+    const player = MockYouTubePlayer.instances[0];
+    act(() => player.options.events.onReady({ target: player }));
+    fireEvent.change(screen.getByRole('slider', { name: 'Позиция видео' }), { target: { value: '0.65' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Играть' }));
+    fireEvent.click(screen.getByRole('switch'));
+    const activeLine = screen.getByRole('img', { name: 'Текущая доля: 2 из 4' });
+    expect(activeLine.querySelectorAll('.is-active')).toHaveLength(1);
+
+    act(() => player.options.events.onStateChange({ target: player, data: 3 }));
+    let inactiveLine = screen.getByRole('img', { name: 'Метроном неактивен' });
+    expect(inactiveLine.querySelectorAll('.is-active')).toHaveLength(0);
+
+    act(() => player.playVideo());
+    expect(screen.getByRole('img', { name: 'Текущая доля: 2 из 4' }).querySelectorAll('.is-active')).toHaveLength(1);
+    act(() => player.pauseVideo());
+    inactiveLine = screen.getByRole('img', { name: 'Метроном неактивен' });
+    expect(inactiveLine.querySelectorAll('.is-active')).toHaveLength(0);
+
+    act(() => player.playVideo());
+    fireEvent.click(screen.getByRole('switch'));
+    inactiveLine = screen.getByRole('img', { name: 'Метроном неактивен' });
+    expect(inactiveLine.querySelectorAll('.is-active')).toHaveLength(0);
+  });
 });
