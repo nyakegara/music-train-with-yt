@@ -42,7 +42,7 @@
 - [x] Run `npm test -- src/renderer/lib/youtubePlayerApi.test.ts` and confirm the new cases fail before implementation.
 - [x] Implement the shared promise loader with one callback owner, a 15-second timeout, and idempotent cleanup.
 - [x] Run the focused tests and confirm all pass.
-- [ ] Commit Task 1 as `feat: add retryable YouTube API loader`.
+- [x] Commit Task 1 as `feat: add retryable YouTube API loader`.
 
 ### Task 2: Visible loading, failure, and retry states
 
@@ -51,10 +51,11 @@
 - Modify: `src/renderer/ui/styles.css`
 - Test: `src/renderer/ui/App.test.tsx`
 
-- [ ] Add component tests for the loading status, visible alert after script error, explicit retry, timeout recovery, and preserving the link through retry.
-- [ ] Run the focused component tests and confirm the failure/retry cases fail before implementation.
-- [ ] Subscribe to `loadYouTubeIframeApi()` with an unmount guard; display Russian status text and a retry button in the existing inline error area.
-- [ ] Run `npm test -- src/renderer/ui/App.test.tsx` and confirm all pass.
+- [x] Add component tests for the loading status, visible alert after script error, explicit retry, timeout recovery, and preserving the link through retry.
+- [x] Run the focused component tests and confirm the failure/retry cases fail before implementation.
+- [x] Subscribe to `loadYouTubeIframeApi()` with an unmount guard; display Russian status text and a retry button in the existing inline error area.
+- [x] Run `npm test -- src/renderer/ui/App.test.tsx` and confirm all pass.
+- [ ] Commit Task 2 as `fix: show retry for YouTube player API errors`.
 
 ### Task 3: Final verification and review
 

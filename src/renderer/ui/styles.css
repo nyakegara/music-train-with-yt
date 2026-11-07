@@ -9,3 +9,7 @@
 
 .link-entry:focus-within{outline:2px solid var(--mint);outline-offset:3px}
 
+.player-api-loading{margin:-8px 0 12px;color:#a5a59b;font-size:11px}
+.player-api-error{align-items:center}
+.player-api-error button{border:1px solid #51422e;background:#2a241d;color:#e8bc72;border-radius:4px;padding:5px 9px;font:9px var(--mono);cursor:pointer}
+
