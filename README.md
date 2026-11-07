@@ -36,6 +36,12 @@ The app stores BPM, first beat, metronome volume, playback speed, meter, and loo
 
 Open **Тренажёр скорости** in the loop card, choose a supported target above the current speed, then start the trainer. Each completed A/B repeat advances by one playback rate reported by YouTube and stops at the target. The trainer is temporary: changing the loop, video, playback speed, or seeking with the app controls stops it.
 
+### Practice report
+
+Click **Отчёт** beside the settings reset to view completed natural A/B repeats, active PLAYING time (excluding pauses and buffering), actual starting/fastest speed, and the latest speed-trainer target. A target is reached when a natural repeat advances playback to that speed. Opening or closing the report leaves playback running. **Сбросить отчёт** starts fresh counters without changing settings or an active trainer; during playback, the current actual speed starts the new report.
+
+The report uses local player events only, not YouTube Analytics. It lives in memory for the current video and app run: switching videos or restarting the app clears it. Report data is never saved to storage.
+
 ### Meter and keyboard controls
 
 Choose **3/4** or **4/4** in the metronome card. The first beat of each bar gets the stronger click. The meter is manual; the app does not detect a song's meter automatically. Existing saved videos default to 4/4.

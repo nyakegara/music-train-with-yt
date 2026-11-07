@@ -1,4 +1,4 @@
-import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { act, cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
@@ -834,6 +834,237 @@ describe('YouTube player lifecycle', () => {
 
     expect(player.seekTo).toHaveBeenLastCalledWith(19.9, true);
     fireEvent.pointerUp(handleA, { pointerId: 10, clientX: 220 });
+  });
+
+  const reportMetric = (label: string) => within(screen.getByRole('dialog', { name: 'Отчёт о тренировке' })).getByText(label).nextElementSibling?.textContent;
+  const openReport = () => fireEvent.click(screen.getByRole('button', { name: 'Отчёт' }));
+  const emitState = (player: MockYouTubePlayer, state: number) => act(() => {
+    player.playerState = state;
+    player.options.events.onStateChange({ target: player, data: state });
+  });
+  const pollAt = async (player: MockYouTubePlayer, time: number) => {
+    player.currentTime = time;
+    await act(async () => { await vi.advanceTimersByTimeAsync(80); });
+  };
+  const naturalRepeat = async (player: MockYouTubePlayer) => {
+    await pollAt(player, 10);
+    await pollAt(player, 19.8);
+    for (const time of [19.84, 19.88, 19.92, 19.96, 20]) await pollAt(player, time);
+  };
+
+  it('reports only PLAYING time across pause, buffering, end and error', async () => {
+    vi.useFakeTimers();
+    const player = await mountPracticeVideo();
+    openReport();
+    expect(reportMetric('Начальная скорость')).toBe('—');
+    emitState(player, 1);
+    await act(async () => { await vi.advanceTimersByTimeAsync(2000); });
+    expect(reportMetric('Активное время')).toBe('00:02');
+    emitState(player, 2);
+    await act(async () => { await vi.advanceTimersByTimeAsync(4000); });
+    emitState(player, 1);
+    await act(async () => { await vi.advanceTimersByTimeAsync(1000); });
+    emitState(player, 3);
+    await act(async () => { await vi.advanceTimersByTimeAsync(5000); });
+    expect(reportMetric('Активное время')).toBe('00:03');
+    emitState(player, 1);
+    await act(async () => { await vi.advanceTimersByTimeAsync(1000); });
+    emitState(player, 0);
+    await act(async () => { await vi.advanceTimersByTimeAsync(3000); });
+    expect(reportMetric('Активное время')).toBe('00:04');
+    emitState(player, 1);
+    await act(async () => { await vi.advanceTimersByTimeAsync(1000); });
+    act(() => player.options.events.onError({ target: player, data: 100 }));
+    await act(async () => { await vi.advanceTimersByTimeAsync(3000); });
+    expect(reportMetric('Активное время')).toBe('00:05');
+  });
+
+  it('reports one natural return despite repeated polls at B and excludes manual seeks', async () => {
+    vi.useFakeTimers();
+    const player = await mountPracticeVideo();
+    player.seekTo.mockImplementation(() => {});
+    emitState(player, 1);
+    await naturalRepeat(player);
+    await pollAt(player, 20);
+    await pollAt(player, 20);
+    openReport();
+    expect(reportMetric('Повторы A–B')).toBe('1');
+    fireEvent.click(screen.getByRole('button', { name: 'Закрыть отчёт' }));
+    await pollAt(player, 10);
+    await pollAt(player, 20);
+    await pollAt(player, 10);
+    fireEvent.change(screen.getByRole('slider', { name: 'Позиция видео' }), { target: { value: '20' } });
+    await pollAt(player, 20);
+    emitState(player, 2);
+    await naturalRepeat(player);
+    openReport();
+    expect(reportMetric('Повторы A–B')).toBe('1');
+  });
+
+  it('reports actual playing speeds and ignores faster paused or buffering speeds', async () => {
+    const player = await mountPracticeVideo();
+    player.currentRate = 0.75;
+    emitState(player, 1);
+    player.currentRate = 1;
+    act(() => player.options.events.onPlaybackRateChange({ target: player }));
+    emitState(player, 2);
+    player.currentRate = 1.25;
+    act(() => player.options.events.onPlaybackRateChange({ target: player }));
+    emitState(player, 3);
+    act(() => player.options.events.onPlaybackRateChange({ target: player }));
+    openReport();
+    expect(reportMetric('Начальная скорость')).toBe('0,75×');
+    expect(reportMetric('Максимальная скорость')).toBe('1×');
+  });
+
+  it('reports only the latest trainer target and reaches it after a natural return', async () => {
+    vi.useFakeTimers();
+    const player = await mountPracticeVideo();
+    fireEvent.click(screen.getByText('Тренажёр скорости'));
+    fireEvent.change(screen.getByRole('combobox', { name: 'Целевая скорость' }), { target: { value: '0.75' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Запустить тренажёр' }));
+    emitState(player, 1);
+    await naturalRepeat(player);
+    openReport();
+    expect(reportMetric('Последняя цель')).toBe('0,75× · достигнута');
+    fireEvent.click(screen.getByRole('button', { name: 'Закрыть отчёт' }));
+    fireEvent.change(screen.getByRole('combobox', { name: 'Целевая скорость' }), { target: { value: '1' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Запустить тренажёр' }));
+    openReport();
+    expect(reportMetric('Последняя цель')).toBe('1× · не достигнута');
+    fireEvent.click(screen.getByRole('button', { name: 'Закрыть отчёт' }));
+    await naturalRepeat(player);
+    openReport();
+    expect(reportMetric('Последняя цель')).toBe('1× · достигнута');
+    expect(reportMetric('Максимальная скорость')).toBe('1×');
+  });
+
+  it('waits for YouTube to actually apply the trainer target rate', async () => {
+    vi.useFakeTimers();
+    const player = await mountPracticeVideo();
+    fireEvent.click(screen.getByText('Тренажёр скорости'));
+    fireEvent.change(screen.getByRole('combobox', { name: 'Целевая скорость' }), { target: { value: '0.75' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Запустить тренажёр' }));
+    player.setPlaybackRate.mockImplementation(() => {});
+    emitState(player, 1);
+    await naturalRepeat(player);
+    openReport();
+    expect(reportMetric('Последняя цель')).toBe('0,75× · не достигнута');
+    expect(reportMetric('Максимальная скорость')).toBe('0,5×');
+    // Seeking to A can buffer before YouTube acknowledges the rate change.
+    emitState(player, 3);
+    await act(async () => { await vi.advanceTimersByTimeAsync(500); });
+    player.currentRate = 0.75;
+    act(() => player.options.events.onPlaybackRateChange({ target: player }));
+    expect(reportMetric('Последняя цель')).toBe('0,75× · достигнута');
+    expect(reportMetric('Максимальная скорость')).toBe('0,5×');
+    emitState(player, 1);
+    expect(reportMetric('Максимальная скорость')).toBe('0,75×');
+  });
+
+  it('does not attribute an expired trainer request to a later external target rate', async () => {
+    vi.useFakeTimers();
+    const player = await mountPracticeVideo();
+    fireEvent.click(screen.getByText('Тренажёр скорости'));
+    fireEvent.change(screen.getByRole('combobox', { name: 'Целевая скорость' }), { target: { value: '0.75' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Запустить тренажёр' }));
+    player.setPlaybackRate.mockImplementation(() => {});
+    emitState(player, 1);
+    await naturalRepeat(player);
+    await act(async () => { await vi.advanceTimersByTimeAsync(1500); });
+    player.currentRate = 0.75;
+    act(() => player.options.events.onPlaybackRateChange({ target: player }));
+    openReport();
+    expect(reportMetric('Последняя цель')).toBe('0,75× · не достигнута');
+    expect(reportMetric('Максимальная скорость')).toBe('0,75×');
+  });
+
+  it('resets report counters while continuing playback and the active trainer without saving settings', async () => {
+    vi.useFakeTimers();
+    const player = await mountPracticeVideo();
+    fireEvent.click(screen.getByText('Тренажёр скорости'));
+    fireEvent.change(screen.getByRole('combobox', { name: 'Целевая скорость' }), { target: { value: '1' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Запустить тренажёр' }));
+    emitState(player, 1);
+    await naturalRepeat(player);
+    await act(async () => { await vi.advanceTimersByTimeAsync(3000); });
+    const saved = localStorage.getItem('practice:dQw4w9WgXcQ');
+    const storageWrite = vi.spyOn(Storage.prototype, 'setItem');
+    try {
+      openReport();
+      fireEvent.click(screen.getByRole('button', { name: 'Сбросить отчёт' }));
+      expect(reportMetric('Повторы A–B')).toBe('0');
+      expect(reportMetric('Активное время')).toBe('00:00');
+      expect(reportMetric('Начальная скорость')).toBe('0,75×');
+      expect(reportMetric('Максимальная скорость')).toBe('0,75×');
+      expect(reportMetric('Последняя цель')).toBe('1× · не достигнута');
+      expect(screen.getByRole('button', { name: 'Остановить тренажёр' })).toBeTruthy();
+      expect(player.playerState).toBe(1);
+      expect(player.pauseVideo).not.toHaveBeenCalled();
+      expect(storageWrite).not.toHaveBeenCalled();
+      expect(localStorage.getItem('practice:dQw4w9WgXcQ')).toBe(saved);
+    } finally { storageWrite.mockRestore(); }
+    await act(async () => { await vi.advanceTimersByTimeAsync(1000); });
+    expect(reportMetric('Активное время')).toBe('00:01');
+    fireEvent.click(screen.getByRole('button', { name: 'Закрыть отчёт' }));
+    await naturalRepeat(player);
+    openReport();
+    expect(reportMetric('Последняя цель')).toBe('1× · достигнута');
+    expect(reportMetric('Повторы A–B')).toBe('1');
+  });
+
+  it.each([2, 3])('leaves reset speed metrics empty in player state %s until PLAYING', async (state) => {
+    const player = await mountPracticeVideo();
+    emitState(player, 1);
+    emitState(player, state);
+    openReport();
+    fireEvent.click(screen.getByRole('button', { name: 'Сбросить отчёт' }));
+    expect(reportMetric('Начальная скорость')).toBe('—');
+    expect(reportMetric('Максимальная скорость')).toBe('—');
+    player.currentRate = 0.75;
+    emitState(player, 1);
+    expect(reportMetric('Начальная скорость')).toBe('0,75×');
+    expect(reportMetric('Максимальная скорость')).toBe('0,75×');
+  });
+
+  it('closes and clears the report on video change and ignores old player events', async () => {
+    const player = await mountPracticeVideo();
+    emitState(player, 1);
+    openReport();
+    fireEvent.change(screen.getByLabelText('ССЫЛКА НА ВИДЕО'), { target: { value: 'https://youtu.be/oHg5SJYRHA0' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Заменить видео' }));
+    expect(screen.queryByRole('dialog')).toBeNull();
+    const replacement = MockYouTubePlayer.instances[1];
+    act(() => replacement.options.events.onReady({ target: replacement }));
+    emitState(player, 1);
+    openReport();
+    expect(reportMetric('Повторы A–B')).toBe('0');
+    expect(reportMetric('Активное время')).toBe('00:00');
+    expect(reportMetric('Начальная скорость')).toBe('—');
+    expect(reportMetric('Последняя цель')).toBe('—');
+  });
+
+  it('contains report focus and restores it without pausing playback', async () => {
+    const player = await mountPracticeVideo();
+    emitState(player, 1);
+    const trigger = screen.getByRole('button', { name: 'Отчёт' });
+    trigger.focus();
+    openReport();
+    const close = screen.getByRole('button', { name: 'Закрыть отчёт' });
+    const reset = screen.getByRole('button', { name: 'Сбросить отчёт' });
+    expect(document.activeElement).toBe(close);
+    fireEvent.keyDown(close, { key: 'Tab', shiftKey: true });
+    expect(document.activeElement).toBe(reset);
+    fireEvent.keyDown(reset, { key: 'Tab' });
+    expect(document.activeElement).toBe(close);
+    fireEvent.keyDown(close, { key: 'Escape' });
+    expect(screen.queryByRole('dialog')).toBeNull();
+    expect(document.activeElement).toBe(trigger);
+    openReport();
+    fireEvent.click(screen.getByRole('button', { name: 'Закрыть отчёт' }));
+    expect(screen.queryByRole('dialog')).toBeNull();
+    expect(player.pauseVideo).not.toHaveBeenCalled();
+    expect(player.playerState).toBe(1);
   });
 
   it('steps once per completed A/B pass and stops after reaching the chosen speed', async () => {
