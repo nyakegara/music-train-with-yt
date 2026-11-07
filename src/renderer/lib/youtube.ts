@@ -179,6 +179,11 @@ export function clampPosition(position: number, duration: number): number {
   return Math.min(duration, Math.max(0, position));
 }
 
+export function videoTimeAtPointer(clientX: number, trackLeft: number, trackWidth: number, duration: number): number | null {
+  if (!Number.isFinite(clientX) || !Number.isFinite(trackLeft) || !Number.isFinite(trackWidth) || !Number.isFinite(duration) || trackWidth <= 0 || duration <= 0) return null;
+  return clampPosition(((clientX - trackLeft) / trackWidth) * duration, duration);
+}
+
 const BEAT_TOLERANCE_SECONDS = 0.02;
 
 export function beatIndexAt(time: number, firstBeat: number, bpm: number): number {

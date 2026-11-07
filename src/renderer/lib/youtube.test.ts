@@ -1,5 +1,5 @@
 import {beforeEach,describe,expect,it} from 'vitest';
-import {parseYouTubeId,shouldLoop,nextBeatTime,nextBeatSchedule,beatIndexAt,loopStartAt,loopEndAt,eligibilityServiceMissing,eligibilityErrorMessage,loadSettings,saveSettings,DEFAULT_SETTINGS,sanitizeSettings,youtubePlayerOrigin,isDownbeat,clampPosition} from './youtube';
+import {parseYouTubeId,shouldLoop,nextBeatTime,nextBeatSchedule,beatIndexAt,loopStartAt,loopEndAt,eligibilityServiceMissing,eligibilityErrorMessage,loadSettings,saveSettings,DEFAULT_SETTINGS,sanitizeSettings,youtubePlayerOrigin,isDownbeat,clampPosition,videoTimeAtPointer} from './youtube';
 describe('YouTube URL parser',()=>{it.each([
  ['https://www.youtube.com/watch?v=dQw4w9WgXcQ&t=18s','dQw4w9WgXcQ'],
  ['https://youtu.be/dQw4w9WgXcQ?si=abc','dQw4w9WgXcQ'],
@@ -26,6 +26,23 @@ describe('active beat index',()=>{
  it('returns no active beat for invalid timing input',()=>{expect(beatIndexAt(1,1,0)).toBe(-1);expect(beatIndexAt(1,1,Number.NaN)).toBe(-1);expect(beatIndexAt(Number.NaN,1,120)).toBe(-1);});
 });
 describe('video position bounds',()=>{it('clamps finite positions to the video and handles invalid values',()=>{expect(clampPosition(-5,180)).toBe(0);expect(clampPosition(185,180)).toBe(180);expect(clampPosition(42.5,180)).toBe(42.5);expect(clampPosition(Number.NaN,180)).toBe(0);expect(clampPosition(10,0)).toBe(0);});});
+describe('loop timeline coordinate mapping',()=>{
+ it('maps pointer X to recording time across the timeline',()=>{
+  expect(videoTimeAtPointer(100,100,1000,180)).toBe(0);
+  expect(videoTimeAtPointer(600,100,1000,180)).toBe(90);
+  expect(videoTimeAtPointer(1100,100,1000,180)).toBe(180);
+ });
+ it('clamps pointer positions beyond the timeline bounds',()=>{
+  expect(videoTimeAtPointer(50,100,1000,180)).toBe(0);
+  expect(videoTimeAtPointer(1200,100,1000,180)).toBe(180);
+ });
+ it('returns null for invalid coordinates, track width, or duration',()=>{
+  expect(videoTimeAtPointer(Number.NaN,100,1000,180)).toBeNull();
+  expect(videoTimeAtPointer(100,Number.POSITIVE_INFINITY,1000,180)).toBeNull();
+  expect(videoTimeAtPointer(100,100,0,180)).toBeNull();
+  expect(videoTimeAtPointer(100,100,1000,0)).toBeNull();
+ });
+});
 describe('eligibility service error messages',()=>{
  const message=(code:string|undefined,retryAfter:string|null=null,retryable?:boolean)=>eligibilityErrorMessage(code,retryAfter,retryable);
  it('maps known Worker errors to distinct user guidance',()=>{

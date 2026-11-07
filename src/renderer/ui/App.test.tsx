@@ -387,6 +387,119 @@ describe('YouTube player lifecycle', () => {
     expect(player.seekTo).toHaveBeenNthCalledWith(2, 10, true);
   });
 
+  it('drags A from timeline position, persists the new value, and ignores the release click', async () => {
+    localStorage.setItem('practice:dQw4w9WgXcQ', JSON.stringify({ loopA: 10, loopB: 60 }));
+    const { container } = render(<App />);
+    await act(async () => { window.onYouTubeIframeAPIReady?.(); });
+    fireEvent.change(screen.getByLabelText('ССЫЛКА НА ВИДЕО'), { target: { value: 'https://youtu.be/dQw4w9WgXcQ' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Загрузить видео' }));
+    const player = MockYouTubePlayer.instances[0];
+    act(() => player.options.events.onReady({ target: player }));
+    const track = container.querySelector('.loop-track') as HTMLDivElement;
+    vi.spyOn(track, 'getBoundingClientRect').mockReturnValue({ left: 100, width: 1000, right: 1100, top: 0, bottom: 3, height: 3, x: 100, y: 0, toJSON: () => ({}) } as DOMRect);
+    const handleA = container.querySelector('.handle-a') as HTMLButtonElement;
+    const setPointerCapture = vi.fn();
+    Object.defineProperty(handleA, 'setPointerCapture', { configurable: true, value: setPointerCapture });
+    fireEvent.change(screen.getByRole('slider', { name: 'Позиция видео' }), { target: { value: '12' } });
+    fireEvent.pointerDown(handleA, { pointerId: 6, button: 0, clientX: 155 });
+    fireEvent.pointerUp(handleA, { pointerId: 6, clientX: 155 });
+    fireEvent.click(handleA, { detail: 1 });
+    expect(JSON.parse(localStorage.getItem('practice:dQw4w9WgXcQ')!).loopA).toBe(12);
+
+    fireEvent.pointerDown(handleA, { pointerId: 7, button: 0, clientX: 155 });
+    fireEvent.pointerMove(handleA, { pointerId: 7, clientX: 400 });
+
+    expect(setPointerCapture).toHaveBeenCalled();
+    expect(JSON.parse(localStorage.getItem('practice:dQw4w9WgXcQ')!).loopA).toBe(54);
+    expect(handleA.getAttribute('aria-label')).toContain('Начало фрагмента A');
+    expect(handleA.getAttribute('aria-label')).toContain('00:54');
+    expect(track.querySelector('.loop-fill')?.getAttribute('style')).toContain('left: 30%;');
+
+    fireEvent.pointerUp(handleA, { pointerId: 7, clientX: 400 });
+    fireEvent.click(handleA, { detail: 1 });
+    expect(JSON.parse(localStorage.getItem('practice:dQw4w9WgXcQ')!).loopA).toBe(54);
+
+    fireEvent.change(screen.getByRole('slider', { name: 'Позиция видео' }), { target: { value: '12' } });
+    fireEvent.click(handleA);
+    expect(JSON.parse(localStorage.getItem('practice:dQw4w9WgXcQ')!).loopA).toBe(12);
+  });
+
+  it('clamps B and A to the 0.1-second gap and stops moving after pointer cancellation', async () => {
+    localStorage.setItem('practice:dQw4w9WgXcQ', JSON.stringify({ loopA: 20, loopB: 40 }));
+    const { container } = render(<App />);
+    await act(async () => { window.onYouTubeIframeAPIReady?.(); });
+    fireEvent.change(screen.getByLabelText('ССЫЛКА НА ВИДЕО'), { target: { value: 'https://youtu.be/dQw4w9WgXcQ' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Загрузить видео' }));
+    const player = MockYouTubePlayer.instances[0];
+    act(() => player.options.events.onReady({ target: player }));
+    const track = container.querySelector('.loop-track') as HTMLDivElement;
+    vi.spyOn(track, 'getBoundingClientRect').mockReturnValue({ left: 100, width: 1000, right: 1100, top: 0, bottom: 3, height: 3, x: 100, y: 0, toJSON: () => ({}) } as DOMRect);
+    const handleA = container.querySelector('.handle-a') as HTMLButtonElement;
+    const handleB = container.querySelector('.handle-b') as HTMLButtonElement;
+    expect(handleB.getAttribute('aria-label')).toContain('Конец фрагмента B');
+
+    fireEvent.pointerDown(handleB, { pointerId: 2, button: 0, clientX: 322 });
+    fireEvent.pointerMove(handleB, { pointerId: 2, clientX: 1200 });
+    expect(JSON.parse(localStorage.getItem('practice:dQw4w9WgXcQ')!).loopB).toBe(180);
+    fireEvent.pointerUp(handleB, { pointerId: 2, clientX: 1200 });
+
+    fireEvent.pointerDown(handleB, { pointerId: 3, button: 0, clientX: 1100 });
+    fireEvent.pointerMove(handleB, { pointerId: 3, clientX: 50 });
+    expect(JSON.parse(localStorage.getItem('practice:dQw4w9WgXcQ')!).loopB).toBe(20.1);
+    fireEvent.pointerUp(handleB, { pointerId: 3, clientX: 50 });
+
+    fireEvent.pointerDown(handleA, { pointerId: 4, button: 0, clientX: 211 });
+    fireEvent.pointerMove(handleA, { pointerId: 4, clientX: 1200 });
+    expect(JSON.parse(localStorage.getItem('practice:dQw4w9WgXcQ')!).loopA).toBe(20);
+    fireEvent.pointerCancel(handleA, { pointerId: 4, clientX: 1200 });
+    fireEvent.pointerMove(handleA, { pointerId: 4, clientX: 500 });
+    expect(JSON.parse(localStorage.getItem('practice:dQw4w9WgXcQ')!).loopA).toBe(20);
+  });
+
+  it('can set previously unset A and B boundaries by dragging', async () => {
+    localStorage.setItem('practice:dQw4w9WgXcQ', JSON.stringify({ loopA: null, loopB: null }));
+    const { container } = render(<App />);
+    await act(async () => { window.onYouTubeIframeAPIReady?.(); });
+    fireEvent.change(screen.getByLabelText('ССЫЛКА НА ВИДЕО'), { target: { value: 'https://youtu.be/dQw4w9WgXcQ' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Загрузить видео' }));
+    const player = MockYouTubePlayer.instances[0];
+    act(() => player.options.events.onReady({ target: player }));
+    const track = container.querySelector('.loop-track') as HTMLDivElement;
+    vi.spyOn(track, 'getBoundingClientRect').mockReturnValue({ left: 100, width: 1000, right: 1100, top: 0, bottom: 3, height: 3, x: 100, y: 0, toJSON: () => ({}) } as DOMRect);
+    const handleA = container.querySelector('.handle-a') as HTMLButtonElement;
+    const handleB = container.querySelector('.handle-b') as HTMLButtonElement;
+
+    fireEvent.pointerDown(handleA, { pointerId: 5, button: 0, clientX: 155 });
+    fireEvent.pointerMove(handleA, { pointerId: 5, clientX: 400 });
+    expect(JSON.parse(localStorage.getItem('practice:dQw4w9WgXcQ')!).loopA).toBe(54);
+    expect(JSON.parse(localStorage.getItem('practice:dQw4w9WgXcQ')!).loopB).toBeNull();
+    fireEvent.pointerUp(handleA, { pointerId: 5, clientX: 400 });
+
+    fireEvent.pointerDown(handleB, { pointerId: 6, button: 0, clientX: 620 });
+    fireEvent.pointerMove(handleB, { pointerId: 6, clientX: 400 });
+    expect(JSON.parse(localStorage.getItem('practice:dQw4w9WgXcQ')!).loopB).toBe(54.1);
+    expect(handleB.getAttribute('aria-label')).toContain('00:54');
+  });
+
+  it('keeps click-to-set working if the track has no measurable width', async () => {
+    localStorage.setItem('practice:dQw4w9WgXcQ', JSON.stringify({ loopA: 10, loopB: 60 }));
+    const { container } = render(<App />);
+    await act(async () => { window.onYouTubeIframeAPIReady?.(); });
+    fireEvent.change(screen.getByLabelText('ССЫЛКА НА ВИДЕО'), { target: { value: 'https://youtu.be/dQw4w9WgXcQ' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Загрузить видео' }));
+    const player = MockYouTubePlayer.instances[0];
+    act(() => player.options.events.onReady({ target: player }));
+    const track = container.querySelector('.loop-track') as HTMLDivElement;
+    vi.spyOn(track, 'getBoundingClientRect').mockReturnValue({ left: 100, width: 0, right: 100, top: 0, bottom: 3, height: 3, x: 100, y: 0, toJSON: () => ({}) } as DOMRect);
+    const handleA = container.querySelector('.handle-a') as HTMLButtonElement;
+    fireEvent.change(screen.getByRole('slider', { name: 'Позиция видео' }), { target: { value: '12' } });
+    fireEvent.pointerDown(handleA, { pointerId: 8, button: 0, clientX: 155 });
+    fireEvent.pointerMove(handleA, { pointerId: 8, clientX: 400 });
+    fireEvent.pointerUp(handleA, { pointerId: 8, clientX: 400 });
+    fireEvent.click(handleA, { detail: 1 });
+    expect(JSON.parse(localStorage.getItem('practice:dQw4w9WgXcQ')!).loopA).toBe(12);
+  });
+
   it('shows the correct way to reopen shortcut help after clicking the video', async () => {
     render(<App />);
     fireEvent.click(screen.getByRole('button', { name: 'Горячие клавиши' }));

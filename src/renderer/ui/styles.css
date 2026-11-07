@@ -18,3 +18,7 @@
 .beat-line .beat-marker.is-active{height:4px;background:var(--mint);opacity:1}
 .beat-line .beat-marker.is-downbeat.is-active{background:var(--amber)}
 .beat-line span.beat-marker{background:#37372f}
+
+.loop-handle{touch-action:none;user-select:none}
+.loop-handle::before{content:"";position:absolute;inset:-6px -7px}
+.loop-handle:active{filter:brightness(1.16)}
