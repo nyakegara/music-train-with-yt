@@ -37,11 +37,11 @@
 - Add `beatIndexAt(time: number, firstBeat: number, bpm: number): number`.
 - Return `-1` before the first beat; otherwise return the zero-based beat index. Use the same 20 ms tolerance as `nextBeatTime`.
 
-- [ ] Write tests for pre-first-beat, first beat, beat boundaries, 20 ms tolerance, and invalid BPM.
-- [ ] Run focused tests and confirm the new helper is missing.
-- [ ] Implement the helper and share the 20 ms tolerance constant with `nextBeatTime`.
-- [ ] Run focused unit tests.
-- [ ] Commit Task 1.
+- [x] Write tests for pre-first-beat, first beat, beat boundaries, 20 ms tolerance, and invalid BPM.
+- [x] Run focused tests and confirm the new helper is missing.
+- [x] Implement the helper and share the 20 ms tolerance constant with `nextBeatTime`.
+- [x] Run focused unit tests.
+- [x] Commit Task 1.
 
 ### Task 2: Render an accessible, live beat line
 

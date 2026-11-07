@@ -1,5 +1,5 @@
 import {beforeEach,describe,expect,it} from 'vitest';
-import {parseYouTubeId,shouldLoop,nextBeatTime,nextBeatSchedule,loopStartAt,loopEndAt,eligibilityServiceMissing,eligibilityErrorMessage,loadSettings,saveSettings,DEFAULT_SETTINGS,sanitizeSettings,youtubePlayerOrigin,isDownbeat,clampPosition} from './youtube';
+import {parseYouTubeId,shouldLoop,nextBeatTime,nextBeatSchedule,beatIndexAt,loopStartAt,loopEndAt,eligibilityServiceMissing,eligibilityErrorMessage,loadSettings,saveSettings,DEFAULT_SETTINGS,sanitizeSettings,youtubePlayerOrigin,isDownbeat,clampPosition} from './youtube';
 describe('YouTube URL parser',()=>{it.each([
  ['https://www.youtube.com/watch?v=dQw4w9WgXcQ&t=18s','dQw4w9WgXcQ'],
  ['https://youtu.be/dQw4w9WgXcQ?si=abc','dQw4w9WgXcQ'],
@@ -18,6 +18,12 @@ describe('stored practice settings',()=>{
 describe('meter and downbeat accent',()=>{
  it('defaults old profiles to 4/4 and sanitizes unsupported meters',()=>{expect(DEFAULT_SETTINGS.timeSignature).toBe(4);expect(sanitizeSettings({bpm:120}).timeSignature).toBe(4);expect(sanitizeSettings({timeSignature:5}).timeSignature).toBe(4);});
  it('accents the first beat of each selected bar',()=>{expect([0,1,2,3,4,5,6].map(i=>isDownbeat(i,3))).toEqual([true,false,false,true,false,false,true]);expect([0,1,2,3,4,5,8].map(i=>isDownbeat(i,4))).toEqual([true,false,false,false,true,false,true]);expect(isDownbeat(-1,3)).toBe(false);});
+});
+describe('active beat index',()=>{
+ it('stays inactive before the marked first beat',()=>{expect(beatIndexAt(0.979,1,120)).toBe(-1);});
+ it('returns a zero-based beat index from the recording position',()=>{expect(beatIndexAt(1,1,120)).toBe(0);expect(beatIndexAt(1.5,1,120)).toBe(1);expect(beatIndexAt(2,1,120)).toBe(2);});
+ it('uses the same 20 ms tolerance as the audio scheduler',()=>{expect(beatIndexAt(1.48,1,120)).toBe(1);expect(beatIndexAt(1.479,1,120)).toBe(0);expect(beatIndexAt(0.98,1,120)).toBe(0);expect(beatIndexAt(0.979,1,120)).toBe(-1);});
+ it('returns no active beat for invalid timing input',()=>{expect(beatIndexAt(1,1,0)).toBe(-1);expect(beatIndexAt(1,1,Number.NaN)).toBe(-1);expect(beatIndexAt(Number.NaN,1,120)).toBe(-1);});
 });
 describe('video position bounds',()=>{it('clamps finite positions to the video and handles invalid values',()=>{expect(clampPosition(-5,180)).toBe(0);expect(clampPosition(185,180)).toBe(180);expect(clampPosition(42.5,180)).toBe(42.5);expect(clampPosition(Number.NaN,180)).toBe(0);expect(clampPosition(10,0)).toBe(0);});});
 describe('eligibility service error messages',()=>{
