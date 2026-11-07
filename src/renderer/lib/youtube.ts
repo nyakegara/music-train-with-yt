@@ -101,7 +101,37 @@ export const DEFAULT_SETTINGS: PracticeSettings = {
 };
 
 const storageKey = (videoId: string) => `practice:${videoId}`;
+const lastVideoIdStorageKey = 'lastVideoId';
+const validYouTubeId = /^[A-Za-z0-9_-]{11}$/;
 const knownPlaybackRates = new Set([0.25, 0.5, 0.75, 0.9, 1, 1.1, 1.25, 1.5, 1.75, 2]);
+
+export function loadLastVideoId(): string | null {
+  try {
+    const videoId = localStorage.getItem(lastVideoIdStorageKey);
+    return videoId && validYouTubeId.test(videoId) ? videoId : null;
+  } catch {
+    return null;
+  }
+}
+
+export function saveLastVideoId(videoId: string): boolean {
+  if (!validYouTubeId.test(videoId)) return false;
+  try {
+    localStorage.setItem(lastVideoIdStorageKey, videoId);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+export function clearLastVideoId(): boolean {
+  try {
+    localStorage.removeItem(lastVideoIdStorageKey);
+    return true;
+  } catch {
+    return false;
+  }
+}
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value);

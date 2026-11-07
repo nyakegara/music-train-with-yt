@@ -1,5 +1,5 @@
-import {beforeEach,describe,expect,it} from 'vitest';
-import {parseYouTubeId,shouldLoop,nextBeatTime,nextBeatSchedule,beatIndexAt,loopStartAt,loopEndAt,eligibilityServiceMissing,eligibilityErrorMessage,loadSettings,saveSettings,DEFAULT_SETTINGS,sanitizeSettings,youtubePlayerOrigin,isDownbeat,clampPosition,videoTimeAtPointer} from './youtube';
+import {afterEach,beforeEach,describe,expect,it,vi} from 'vitest';
+import {parseYouTubeId,shouldLoop,nextBeatTime,nextBeatSchedule,beatIndexAt,loopStartAt,loopEndAt,eligibilityServiceMissing,eligibilityErrorMessage,loadSettings,saveSettings,loadLastVideoId,saveLastVideoId,clearLastVideoId,DEFAULT_SETTINGS,sanitizeSettings,youtubePlayerOrigin,isDownbeat,clampPosition,videoTimeAtPointer} from './youtube';
 describe('YouTube URL parser',()=>{it.each([
  ['https://www.youtube.com/watch?v=dQw4w9WgXcQ&t=18s','dQw4w9WgXcQ'],
  ['https://youtu.be/dQw4w9WgXcQ?si=abc','dQw4w9WgXcQ'],
@@ -14,6 +14,39 @@ describe('stored practice settings',()=>{
  it('saves settings independently per video and restores them',()=>{const settings={...DEFAULT_SETTINGS,bpm:132,speed:0.75};expect(saveSettings('dQw4w9WgXcQ',settings)).toBe(true);expect(loadSettings('dQw4w9WgXcQ')).toEqual(settings);expect(loadSettings('M7lc1UVf-VE')).toEqual(DEFAULT_SETTINGS);});
  it('restores the metronome off so it always needs an explicit start',()=>{const settings={...DEFAULT_SETTINGS,metronomeEnabled:true};saveSettings('dQw4w9WgXcQ',settings);expect(loadSettings('dQw4w9WgXcQ').metronomeEnabled).toBe(false);});
  it('falls back to defaults for broken JSON and sanitizes old or invalid values',()=>{localStorage.setItem('practice:dQw4w9WgXcQ','{');expect(loadSettings('dQw4w9WgXcQ')).toEqual(DEFAULT_SETTINGS);expect(sanitizeSettings({bpm:900,firstBeat:-3,speed:0,loopA:8,loopB:2,volume:4})).toEqual({...DEFAULT_SETTINGS,bpm:240,volume:1});});
+});
+describe('remembered video storage',()=>{
+ beforeEach(()=>localStorage.clear());
+ afterEach(()=>vi.restoreAllMocks());
+ it('saves and loads a valid video ID under the remembered-video key',()=>{
+  expect(saveLastVideoId('dQw4w9WgXcQ')).toBe(true);
+  expect(localStorage.getItem('lastVideoId')).toBe('dQw4w9WgXcQ');
+  expect(loadLastVideoId()).toBe('dQw4w9WgXcQ');
+ });
+ it.each(['', 'short', 'dQw4w9WgXc!', 'abcdefghijk?'])('returns null for malformed stored video ID %j',storedId=>{
+  localStorage.setItem('lastVideoId',storedId);
+  expect(loadLastVideoId()).toBeNull();
+ });
+ it('rejects an invalid ID without replacing the remembered video',()=>{
+  localStorage.setItem('lastVideoId','dQw4w9WgXcQ');
+  expect(saveLastVideoId('invalid')).toBe(false);
+  expect(localStorage.getItem('lastVideoId')).toBe('dQw4w9WgXcQ');
+ });
+ it('contains local storage exceptions and returns safe results',()=>{
+  vi.spyOn(Storage.prototype,'getItem').mockImplementation(()=>{throw new Error('unavailable');});
+  expect(loadLastVideoId()).toBeNull();
+  vi.spyOn(Storage.prototype,'setItem').mockImplementation(()=>{throw new Error('unavailable');});
+  expect(saveLastVideoId('dQw4w9WgXcQ')).toBe(false);
+  vi.spyOn(Storage.prototype,'removeItem').mockImplementation(()=>{throw new Error('unavailable');});
+  expect(clearLastVideoId()).toBe(false);
+ });
+ it('clears the remembered video while preserving its practice settings',()=>{
+  localStorage.setItem('lastVideoId','dQw4w9WgXcQ');
+  localStorage.setItem('practice:dQw4w9WgXcQ','{"bpm":132}');
+  expect(clearLastVideoId()).toBe(true);
+  expect(localStorage.getItem('lastVideoId')).toBeNull();
+  expect(localStorage.getItem('practice:dQw4w9WgXcQ')).toBe('{"bpm":132}');
+ });
 });
 describe('meter and downbeat accent',()=>{
  it('defaults old profiles to 4/4 and sanitizes unsupported meters',()=>{expect(DEFAULT_SETTINGS.timeSignature).toBe(4);expect(sanitizeSettings({bpm:120}).timeSignature).toBe(4);expect(sanitizeSettings({timeSignature:5}).timeSignature).toBe(4);});
