@@ -1,6 +1,7 @@
 name = "music-train-eligibility"
 main = "src/index.ts"
 compatibility_date = "2026-11-07"
+workers_dev = true
 
 [[ratelimits]]
 name = "RATE_LIMITER"
