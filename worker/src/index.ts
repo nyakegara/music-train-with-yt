@@ -89,7 +89,7 @@ export default {
       if (typeof status.privacyStatus !== 'string') return serviceError('upstream_unavailable', true, 503, defaultRetryAfterSeconds);
       if (status.madeForKids !== undefined && typeof status.madeForKids !== 'boolean') return serviceError('upstream_unavailable', true, 503, defaultRetryAfterSeconds);
       if (status.madeForKids === true) return json({ eligible: false, reason: 'made_for_kids' });
-      if (status.privacyStatus !== 'public') return json({ eligible: false, reason: 'not_public' });
+      if (status.privacyStatus !== 'public' && status.privacyStatus !== 'unlisted') return json({ eligible: false, reason: 'not_public' });
       if (status.embeddable !== true) return json({ eligible: false, reason: 'embedding_disabled' });
       return json({ eligible: true });
     } catch {
