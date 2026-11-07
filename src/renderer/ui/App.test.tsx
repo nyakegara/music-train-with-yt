@@ -962,6 +962,26 @@ describe('YouTube player lifecycle', () => {
     expect(reportMetric('Максимальная скорость')).toBe('0,75×');
   });
 
+  it.each([1, 1.25])('keeps a trainer targeting %s active when an earlier manual rate command is acknowledged', async (target) => {
+    vi.useFakeTimers();
+    const player = await mountPracticeVideo();
+    player.setPlaybackRate.mockImplementation(() => {});
+    fireEvent.click(screen.getByRole('button', { name: /0.5×/ }));
+    fireEvent.click(screen.getByText('Тренажёр скорости'));
+    if (target === 1.25) fireEvent.change(screen.getByRole('combobox', { name: 'Целевая скорость' }), { target: { value: '1.25' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Запустить тренажёр' }));
+    expect(screen.getByRole('button', { name: 'Остановить тренажёр' })).toBeTruthy();
+    emitState(player, 1);
+    await act(async () => { await vi.advanceTimersByTimeAsync(1500); });
+    player.currentRate = 0.75;
+    act(() => player.options.events.onPlaybackRateChange({ target: player }));
+    expect(screen.getByRole('button', { name: 'Остановить тренажёр' })).toBeTruthy();
+    expect(screen.getByRole('button', { name: /0.75×/ })).toBeTruthy();
+    openReport();
+    expect(reportMetric('Последняя цель')).toBe(target === 1 ? '1× · не достигнута' : '1,25× · не достигнута');
+    expect(reportMetric('Максимальная скорость')).toBe('0,75×');
+  });
+
   const requestUnconfirmedTarget = async (player: MockYouTubePlayer) => {
     fireEvent.click(screen.getByText('Тренажёр скорости'));
     fireEvent.change(screen.getByRole('combobox', { name: 'Целевая скорость' }), { target: { value: '0.75' } });
