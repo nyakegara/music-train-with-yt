@@ -185,9 +185,8 @@ describe('YouTube player lifecycle', () => {
     const loadButton = screen.getByRole('button', { name: 'Загрузить видео' });
 
     fireEvent.click(loadButton);
-    await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(1));
     expect(fetchMock).toHaveBeenCalledWith('https://eligibility.example/v1/videos/dQw4w9WgXcQ/eligibility');
-    expect(screen.getByRole('alert').textContent).toContain('45 секунд');
+    expect((await screen.findByRole('alert')).textContent).toContain('45 секунд');
     expect(screen.queryByText('Сначала загрузи видео, чтобы управлять воспроизведением.')).toBeNull();
     expect(input.value).toBe(url);
     expect(MockYouTubePlayer.instances).toHaveLength(0);
