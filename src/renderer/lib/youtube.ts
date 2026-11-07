@@ -18,7 +18,14 @@ export function parseYouTubeId(input: string): string | null {
 }
 
 export function eligibilityServiceMissing(isDevelopment: boolean, endpoint: string | undefined): boolean {
-  return !isDevelopment && !endpoint;
+  if (isDevelopment) return false;
+  if (!endpoint?.trim()) return true;
+  try {
+    const url = new URL(endpoint);
+    return url.protocol !== 'https:' || Boolean(url.username || url.password || url.search || url.hash);
+  } catch {
+    return true;
+  }
 }
 
 export type PracticeSettings = {

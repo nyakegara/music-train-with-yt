@@ -7,7 +7,7 @@ describe('YouTube URL parser',()=>{it.each([
  ['https://youtube.com.evil.test/watch?v=dQw4w9WgXcQ',null],
  ['https://example.com/watch?v=dQw4w9WgXcQ',null],
 ])('%s',(url,id)=>expect(parseYouTubeId(url)).toBe(id));});
-describe('release configuration',()=>{it('blocks release builds without the eligibility service but allows local development',()=>{expect(eligibilityServiceMissing(false,undefined)).toBe(true);expect(eligibilityServiceMissing(false,'https://worker.example')).toBe(false);expect(eligibilityServiceMissing(true,undefined)).toBe(false);});});
+describe('release configuration',()=>{it('requires an HTTPS eligibility service in release builds but allows local development',()=>{expect(eligibilityServiceMissing(false,undefined)).toBe(true);expect(eligibilityServiceMissing(false,'not a URL')).toBe(true);expect(eligibilityServiceMissing(false,'http://worker.example')).toBe(true);expect(eligibilityServiceMissing(false,'https://worker.example')).toBe(false);expect(eligibilityServiceMissing(true,undefined)).toBe(false);});});
 describe('stored practice settings',()=>{
  beforeEach(()=>localStorage.clear());
  it('saves settings independently per video and restores them',()=>{const settings={...DEFAULT_SETTINGS,bpm:132,speed:0.75};expect(saveSettings('dQw4w9WgXcQ',settings)).toBe(true);expect(loadSettings('dQw4w9WgXcQ')).toEqual(settings);expect(loadSettings('M7lc1UVf-VE')).toEqual(DEFAULT_SETTINGS);});

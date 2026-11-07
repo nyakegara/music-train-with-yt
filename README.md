@@ -13,13 +13,14 @@ npm run dev
 
 ## Test and build
 
-```sh
+```powershell
 npm test
 npm run build
+$env:VITE_ELIGIBILITY_API = "https://your-worker.example.workers.dev"
 npm run dist:win
 ```
 
-The NSIS installer is written to `release/`. The YouTube embedded player requires internet access. Release builds require `VITE_ELIGIBILITY_API` so videos are checked before embedding. Development mode permits direct embed testing without the Worker. See [`worker/README.md`](worker/README.md) for deployment.
+The NSIS installer is written to `release/`. `npm run dist:win` rejects a missing or insecure Worker URL, so the released app won't silently ship without video eligibility checks. The YouTube embedded player requires internet access. Development mode permits direct embed testing without the Worker. See [`worker/README.md`](worker/README.md) for deployment.
 
 ## Current scope
 
