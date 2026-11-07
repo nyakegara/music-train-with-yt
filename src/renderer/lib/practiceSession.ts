@@ -68,11 +68,11 @@ export class PracticeSessionTracker {
 
   reset(nowMs: number, currentRate: number, activeTarget: number | null): void {
     const wasPlaying = this.playbackStartedAt !== null;
-    this.activeMilliseconds = wasPlaying ? Math.max(0, nowMs - this.playbackStartedAt!) : 0;
+    this.activeMilliseconds = 0;
     this.playbackStartedAt = wasPlaying ? nowMs : null;
     this.completedLoops = 0;
-    this.startingSpeed = currentRate;
-    this.fastestSpeed = currentRate;
+    this.startingSpeed = wasPlaying ? currentRate : null;
+    this.fastestSpeed = wasPlaying ? currentRate : null;
     this.targetSpeed = activeTarget;
     this.targetReached = false;
   }

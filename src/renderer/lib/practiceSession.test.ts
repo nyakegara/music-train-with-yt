@@ -49,7 +49,7 @@ describe('PracticeSessionTracker', () => {
     expect(snapshot.targetReached).toBe(false);
   });
 
-  it('resets the active session at the current rate while preserving an unreached target', () => {
+  it('resets active time and speed metrics at the current rate while preserving an unreached target', () => {
     const tracker = new PracticeSessionTracker('video-1');
     tracker.setTarget(1.5);
     tracker.startPlayback(0, 0.5);
@@ -58,12 +58,33 @@ describe('PracticeSessionTracker', () => {
     tracker.reset(100, 0.75, 1.5);
     expect(tracker.snapshot(100)).toEqual({
       videoId: 'video-1',
-      activeMilliseconds: 100,
+      activeMilliseconds: 0,
       completedLoops: 0,
       startingSpeed: 0.75,
       fastestSpeed: 0.75,
       targetSpeed: 1.5,
       targetReached: false,
+    });
+    expect(tracker.snapshot(150).activeMilliseconds).toBe(50);
+  });
+
+  it('leaves speed metrics empty when reset while stopped until playback resumes', () => {
+    const tracker = new PracticeSessionTracker('video-1');
+    tracker.startPlayback(0, 1.5);
+    tracker.stopPlayback(100);
+
+    tracker.reset(200, 1.5, null);
+    expect(tracker.snapshot(200)).toMatchObject({
+      activeMilliseconds: 0,
+      startingSpeed: null,
+      fastestSpeed: null,
+    });
+
+    tracker.startPlayback(300, 0.5);
+    expect(tracker.snapshot(300)).toMatchObject({
+      activeMilliseconds: 0,
+      startingSpeed: 0.5,
+      fastestSpeed: 0.5,
     });
   });
 });

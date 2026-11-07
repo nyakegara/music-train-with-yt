@@ -22,3 +22,10 @@ Implemented the in-memory `PracticeSessionTracker` and its focused unit tests. T
 - The first sandboxed Vitest invocation cannot start because Vite's Windows path resolution attempts a subprocess that returns `EPERM`; running the same test command outside the sandbox worked.
 - The full suite emitted Vitest's informational jsdom environment performance notice (created 9 times); all tests passed.
 - Natural-boundary authenticity and target-transition eligibility depend on the caller supplying the accepted signals, as intended for Task 2 integration.
+
+## Round 1 reset correction
+
+- **RED:** Updated the active-reset test to expect zero accrued time at the reset point and 50 ms at `nowMs + 50`; added a paused-reset/resume case expecting null speed metrics until playback resumes at 0.5. The focused run failed both new expectations: reset reported 100 ms at the reset point and retained 1.5 as both speed metrics while stopped.
+- **GREEN:** `npm test -- src/renderer/lib/practiceSession.test.ts --reporter=dot` — **1 test file passed, 5 tests passed**.
+- Reset now always clears prior active time, starts a new active interval at `nowMs` only if playback was active, and seeds start/fastest speed only in that active case. When stopped, both speed metrics remain null until the next `startPlayback`.
+- The focused command again required elevated execution because sandboxed Vitest startup is blocked by the previously noted Windows `spawn EPERM` issue. No full-suite rerun was requested for this correction.
