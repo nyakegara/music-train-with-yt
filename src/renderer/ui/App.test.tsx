@@ -197,6 +197,38 @@ describe('YouTube player lifecycle', () => {
     expect(screen.queryByRole('alert')).toBeNull();
   });
 
+  it('resets the active YouTube playback rate to one', async () => {
+    localStorage.setItem('practice:dQw4w9WgXcQ', JSON.stringify({ bpm: 100, firstBeat: 0, speed: 0.5, loopA: null, loopB: null, metronomeEnabled: false, volume: 0.35 }));
+    render(<App />);
+    await act(async () => { window.onYouTubeIframeAPIReady?.(); });
+    fireEvent.change(screen.getByLabelText('ССЫЛКА НА ВИДЕО'), { target: { value: 'https://youtu.be/dQw4w9WgXcQ' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Загрузить видео' }));
+    const player = MockYouTubePlayer.instances[0];
+    act(() => player.options.events.onReady({ target: player }));
+    expect(player.setPlaybackRate).toHaveBeenLastCalledWith(0.5);
+
+    fireEvent.click(screen.getByRole('button', { name: 'Сбросить' }));
+
+    expect(player.setPlaybackRate).toHaveBeenLastCalledWith(1);
+    expect(screen.getByText('1×')).toBeTruthy();
+    expect(JSON.parse(localStorage.getItem('practice:dQw4w9WgXcQ')!).speed).toBe(1);
+  });
+
+  it('uses the reset playback rate if settings reset before the player is ready', async () => {
+    localStorage.setItem('practice:dQw4w9WgXcQ', JSON.stringify({ bpm: 100, firstBeat: 0, speed: 0.5, loopA: null, loopB: null, metronomeEnabled: false, volume: 0.35 }));
+    render(<App />);
+    await act(async () => { window.onYouTubeIframeAPIReady?.(); });
+    fireEvent.change(screen.getByLabelText('ССЫЛКА НА ВИДЕО'), { target: { value: 'https://youtu.be/dQw4w9WgXcQ' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Загрузить видео' }));
+    const player = MockYouTubePlayer.instances[0];
+
+    fireEvent.click(screen.getByRole('button', { name: 'Сбросить' }));
+    act(() => player.options.events.onReady({ target: player }));
+
+    expect(player.setPlaybackRate).toHaveBeenLastCalledWith(1);
+    expect(screen.getByText('1×')).toBeTruthy();
+  });
+
   it('lets the user set and saves metronome volume for the loaded video', async () => {
     render(<App />);
     await act(async () => { window.onYouTubeIframeAPIReady?.(); });
@@ -468,5 +500,30 @@ describe('YouTube player lifecycle', () => {
     expect(scheduled.start).toHaveBeenCalledWith(expect.closeTo(0.7));
     act(() => player.options.events.onStateChange({ target: player, data: 3 }));
     expect(scheduled.stop).toHaveBeenCalled();
+  });
+
+  it('stops metronome scheduling after the active player reports an error', async () => {
+    vi.useFakeTimers();
+    localStorage.setItem('practice:dQw4w9WgXcQ', JSON.stringify({ bpm: 60, firstBeat: 0, timeSignature: 4, speed: 1, loopA: null, loopB: null, metronomeEnabled: false, volume: 0.35 }));
+    render(<App />);
+    await act(async () => { window.onYouTubeIframeAPIReady?.(); });
+    fireEvent.change(screen.getByLabelText('ССЫЛКА НА ВИДЕО'), { target: { value: 'https://youtu.be/dQw4w9WgXcQ' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Загрузить видео' }));
+    const player = MockYouTubePlayer.instances[0];
+    act(() => player.options.events.onReady({ target: player }));
+    fireEvent.change(screen.getByRole('slider', { name: 'Позиция видео' }), { target: { value: '0.3' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Играть' }));
+    fireEvent.click(screen.getByRole('switch'));
+    await act(async () => { await vi.advanceTimersByTimeAsync(20); });
+    const scheduled = MockAudioContext.instance.oscillators.at(-1)!;
+    const oscillatorCount = MockAudioContext.instance.oscillators.length;
+    expect(scheduled.start).toHaveBeenCalled();
+
+    act(() => player.options.events.onError({ target: player }));
+    expect((screen.getByRole('button', { name: 'Играть' }) as HTMLButtonElement).disabled).toBe(true);
+    expect(scheduled.stop).toHaveBeenCalled();
+    player.currentTime = 1;
+    await act(async () => { await vi.advanceTimersByTimeAsync(100); });
+    expect(MockAudioContext.instance.oscillators).toHaveLength(oscillatorCount);
   });
 });
