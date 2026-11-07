@@ -20,7 +20,7 @@ The app appends `https://www.youtube.com/iframe_api` and waits indefinitely for 
 
 - Reuse `window.YT.Player` immediately when it is already available.
 - Allow only one active script load; call concurrent requests through the same promise.
-- Wait up to 15 seconds for the API callback. On script error or timeout, reject, remove the failed script, restore the previous global callback if still owned, and allow a later retry.
+- Wait up to 15 seconds for the API callback. On script error or timeout, resolve if `window.YT.Player` is already available; otherwise reject, remove the failed script, restore the previous global callback if still owned, and allow a later retry.
 - Chain a pre-existing `onYouTubeIframeAPIReady` callback and never overwrite a newer owner during cleanup.
 - Ignore a component's promise completion after unmount.
 - After video eligibility succeeds, show `Подключаю плеер YouTube…` as a status while loading. On failure, show `Не удалось подключить плеер YouTube. Проверь подключение и попробуй ещё раз.` with a `Повторить` button and `role="alert"`.

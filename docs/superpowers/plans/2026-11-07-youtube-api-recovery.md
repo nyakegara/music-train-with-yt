@@ -24,6 +24,7 @@
 - Script error and 15-second timeout: expose failure and let a retry create a new attempt.
 - Late or duplicate callback: do not settle an old request twice or update an unmounted component.
 - Previous callback: chain it and restore it only when the loader still owns the global slot.
+- If another script replaces the callback but `window.YT.Player` becomes available, treat the API as loaded when the timeout fires.
 
 ---
 
@@ -36,9 +37,9 @@
 **Interface:**
 - Export `loadYouTubeIframeApi(): Promise<void>` and `YOUTUBE_API_TIMEOUT_MS` set to `15_000`.
 - Resolve when `window.YT.Player` exists or when the current global ready callback fires.
-- Reject on script error or timeout; remove the failed script and release the shared attempt so a later call can retry.
+- Reject on script error or timeout if the API is still unavailable; remove the failed script and release the shared attempt so a later call can retry.
 
-- [x] Write tests for already-ready API, concurrent calls sharing one script, script error followed by successful retry, timeout followed by successful retry, duplicate callbacks, and callback restoration.
+- [x] Write tests for already-ready API, concurrent calls sharing one script, script error followed by successful retry, timeout followed by successful retry, duplicate callbacks, callback restoration, and API readiness after another owner replaces the callback.
 - [x] Run `npm test -- src/renderer/lib/youtubePlayerApi.test.ts` and confirm the new cases fail before implementation.
 - [x] Implement the shared promise loader with one callback owner, a 15-second timeout, and idempotent cleanup.
 - [x] Run the focused tests and confirm all pass.
@@ -55,11 +56,11 @@
 - [x] Run the focused component tests and confirm the failure/retry cases fail before implementation.
 - [x] Subscribe to `loadYouTubeIframeApi()` with an unmount guard; display Russian status text and a retry button in the existing inline error area.
 - [x] Run `npm test -- src/renderer/ui/App.test.tsx` and confirm all pass.
-- [ ] Commit Task 2 as `fix: show retry for YouTube player API errors`.
+- [x] Commit Task 2 as `fix: show retry for YouTube player API errors`.
 
 ### Task 3: Final verification and review
 
 - [x] Run `npm test` and confirm all tests pass.
 - [x] Run `npm run build` and confirm the production build passes.
-- [x] Run `git diff --check`, request a read-only code review, address Critical/Important findings, and record any deferred minor.
-- [ ] Open an issue-linked PR for #25.
+- [x] Run `git diff --check`, request a read-only code review, address Critical/Important findings, and fix the minor timeout/callback ownership edge found in review.
+- [x] Open issue-linked PR #27 for #25.
