@@ -121,6 +121,56 @@ describe('YouTube player lifecycle', () => {
     expect(screen.queryByText('Сначала загрузи видео, чтобы управлять воспроизведением.')).toBeNull();
   });
 
+  it('shows replacement checks, ignores duplicate submits, and keeps the current player on rejection', async () => {
+    vi.stubEnv('VITE_ELIGIBILITY_API', 'https://eligibility.example');
+    let resolveVideoB!: (response: any) => void;
+    let resolveVideoC!: (response: any) => void;
+    const pendingVideoB = new Promise<any>((resolve) => { resolveVideoB = resolve; });
+    const pendingVideoC = new Promise<any>((resolve) => { resolveVideoC = resolve; });
+    const eligibleResponse = { ok: true, json: vi.fn().mockResolvedValue({ eligible: true }) };
+    const fetchMock = vi.fn()
+      .mockResolvedValueOnce(eligibleResponse)
+      .mockReturnValueOnce(pendingVideoB)
+      .mockReturnValueOnce(pendingVideoC);
+    vi.stubGlobal('fetch', fetchMock);
+    render(<App />);
+    await act(async () => { window.onYouTubeIframeAPIReady?.(); });
+    const input = screen.getByLabelText('ССЫЛКА НА ВИДЕО');
+    const loadButton = screen.getByRole('button', { name: 'Загрузить видео' });
+    fireEvent.change(input, { target: { value: 'https://youtu.be/dQw4w9WgXcQ' } });
+    fireEvent.click(loadButton);
+    await waitFor(() => expect(MockYouTubePlayer.instances).toHaveLength(1));
+    const player = MockYouTubePlayer.instances[0];
+    act(() => player.options.events.onReady({ target: player }));
+
+    fireEvent.change(input, { target: { value: 'https://youtu.be/oHg5SJYRHA0' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Заменить видео' }));
+    await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(2));
+    fireEvent.keyDown(input, { key: 'Enter' });
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+    expect(screen.getByText('Проверяю доступность видео…').closest('[role="status"]')).toBeTruthy();
+    expect(screen.getByRole('button', { name: 'Проверяю…' }).hasAttribute('disabled')).toBe(true);
+    const playButton = screen.getByRole('button', { name: 'Играть' });
+    expect(playButton.hasAttribute('disabled')).toBe(false);
+    fireEvent.click(playButton);
+    expect(player.playVideo).toHaveBeenCalledTimes(1);
+
+    fireEvent.change(input, { target: { value: 'https://youtu.be/9bZkp7q19f0' } });
+    fireEvent.keyDown(input, { key: 'Enter' });
+    await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(3));
+    expect(screen.getByRole('button', { name: 'Проверяю…' }).hasAttribute('disabled')).toBe(true);
+    await act(async () => { resolveVideoB({ ok: true, json: vi.fn().mockResolvedValue({ eligible: true }) }); });
+    expect(screen.getByText('Проверяю доступность видео…').closest('[role="status"]')).toBeTruthy();
+
+    await act(async () => { resolveVideoC({ ok: true, json: vi.fn().mockResolvedValue({ eligible: false, reason: 'not_embeddable' }) }); });
+    expect(screen.queryByText('Проверяю доступность видео…')).toBeNull();
+    expect(screen.getByRole('alert').textContent).toContain('Видео недоступно для встраивания');
+    expect(screen.getByText('dQw4w9WgXcQ')).toBeTruthy();
+    expect(MockYouTubePlayer.instances).toHaveLength(1);
+    expect(screen.getByRole('button', { name: 'Заменить видео' }).hasAttribute('disabled')).toBe(false);
+    expect(screen.getByRole('button', { name: 'Пауза' }).hasAttribute('disabled')).toBe(false);
+  });
+
   it('shows quota guidance without an immediate retry delay', async () => {
     vi.stubEnv('VITE_ELIGIBILITY_API', 'https://eligibility.example');
     const fetchMock = vi.fn().mockResolvedValue({
@@ -136,6 +186,7 @@ describe('YouTube player lifecycle', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Загрузить видео' }));
 
     await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(1));
+    await waitFor(() => expect(screen.getByRole('alert').textContent?.toLowerCase()).toContain('квот'));
     const alert = screen.getByRole('alert').textContent ?? '';
     expect(alert.toLowerCase()).toContain('квот');
     expect(alert).not.toContain('120');
