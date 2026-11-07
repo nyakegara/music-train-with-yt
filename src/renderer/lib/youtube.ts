@@ -89,6 +89,13 @@ export type PracticeSettings = {
   volume: number;
 };
 
+export type PracticeSegment = {
+  id: string;
+  label: string;
+  loopA: number;
+  loopB: number;
+};
+
 export const DEFAULT_SETTINGS: PracticeSettings = {
   bpm: 100,
   timeSignature: 4,
@@ -101,8 +108,11 @@ export const DEFAULT_SETTINGS: PracticeSettings = {
 };
 
 const storageKey = (videoId: string) => `practice:${videoId}`;
+const practiceSegmentsStorageKey = (videoId: string) => `practice-segments:${videoId}`;
 const lastVideoIdStorageKey = 'lastVideoId';
 const validYouTubeId = /^[A-Za-z0-9_-]{11}$/;
+const validPracticeSegmentId = /^[A-Za-z0-9_-]{1,80}$/;
+const maximumPracticeSegmentLabelLength = 40;
 const knownPlaybackRates = new Set([0.25, 0.5, 0.75, 0.9, 1, 1.1, 1.25, 1.5, 1.75, 2]);
 
 export function loadLastVideoId(): string | null {
@@ -180,6 +190,71 @@ export function loadSettings(videoId: string): PracticeSettings {
 export function saveSettings(videoId: string, settings: PracticeSettings): boolean {
   try {
     localStorage.setItem(storageKey(videoId), JSON.stringify({ ...sanitizeSettings(settings), metronomeEnabled: false }));
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+function normalizePracticeSegment(value: unknown): PracticeSegment | null {
+  if (!isRecord(value)) return null;
+  if (typeof value.id !== 'string' || !validPracticeSegmentId.test(value.id)) return null;
+  if (typeof value.label !== 'string') return null;
+  const label = value.label.trim();
+  if (!label || label.length > maximumPracticeSegmentLabelLength) return null;
+  if (typeof value.loopA !== 'number' || !Number.isFinite(value.loopA) || value.loopA < 0) return null;
+  if (typeof value.loopB !== 'number' || !Number.isFinite(value.loopB) || value.loopB <= value.loopA) return null;
+  return { id: value.id, label, loopA: value.loopA, loopB: value.loopB };
+}
+
+function validUniquePracticeSegments(value: unknown): PracticeSegment[] | null {
+  if (!Array.isArray(value)) return null;
+  const segments: PracticeSegment[] = [];
+  const ids = new Set<string>();
+  const labels = new Set<string>();
+  for (const item of value) {
+    const segment = normalizePracticeSegment(item);
+    if (!segment) return null;
+    const normalizedLabel = segment.label.toLocaleLowerCase('ru-RU');
+    if (ids.has(segment.id) || labels.has(normalizedLabel)) return null;
+    ids.add(segment.id);
+    labels.add(normalizedLabel);
+    segments.push(segment);
+  }
+  return segments;
+}
+
+export function loadPracticeSegments(videoId: string): PracticeSegment[] {
+  if (!validYouTubeId.test(videoId)) return [];
+  try {
+    const stored = localStorage.getItem(practiceSegmentsStorageKey(videoId));
+    if (!stored) return [];
+    const value: unknown = JSON.parse(stored);
+    if (!Array.isArray(value)) return [];
+    const segments: PracticeSegment[] = [];
+    const ids = new Set<string>();
+    const labels = new Set<string>();
+    for (const item of value) {
+      const segment = normalizePracticeSegment(item);
+      if (!segment) continue;
+      const normalizedLabel = segment.label.toLocaleLowerCase('ru-RU');
+      if (ids.has(segment.id) || labels.has(normalizedLabel)) continue;
+      ids.add(segment.id);
+      labels.add(normalizedLabel);
+      segments.push(segment);
+    }
+    return segments;
+  } catch {
+    return [];
+  }
+}
+
+export function savePracticeSegments(videoId: string, segments: PracticeSegment[]): boolean {
+  if (!validYouTubeId.test(videoId)) return false;
+  const normalized = validUniquePracticeSegments(segments);
+  if (!normalized) return false;
+  try {
+    localStorage.setItem(practiceSegmentsStorageKey(videoId), JSON.stringify(normalized));
     return true;
   } catch {
     return false;
