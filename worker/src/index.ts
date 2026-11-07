@@ -1,4 +1,4 @@
-export interface Env { YOUTUBE_API_KEY: string }
+export interface Env { YOUTUBE_API_KEY: string; RATE_LIMITER: { limit(options: { key: string }): Promise<{ success: boolean }> } }
 
 const json = (body: unknown, status = 200) => new Response(JSON.stringify(body), {
   status,
@@ -17,6 +17,11 @@ export default {
     const videoId = match[1];
     if (!validId(videoId)) return json({ error: 'invalid_video_id' }, 400);
     if (!env.YOUTUBE_API_KEY) return json({ error: 'service_unavailable' }, 503);
+    const ip = request.headers.get('CF-Connecting-IP') ?? 'unknown';
+    let rate: { success: boolean };
+    try { rate = await env.RATE_LIMITER.limit({ key: ip }); }
+    catch { return json({ error: 'service_unavailable' }, 503); }
+    if (!rate.success) return json({ error: 'rate_limited' }, 429);
 
     try {
       const apiUrl = new URL('https://www.googleapis.com/youtube/v3/videos');
