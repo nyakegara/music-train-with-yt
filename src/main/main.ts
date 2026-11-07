@@ -1,4 +1,4 @@
-import { app, BrowserWindow, session, shell } from 'electron';
+import { app, BrowserWindow, ipcMain, session, shell } from 'electron';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 const here = path.dirname(fileURLToPath(import.meta.url));
@@ -19,6 +19,7 @@ function createWindow() {
 }
 app.whenReady().then(()=>{
   app.setAppUserModelId('com.musictrain.desktop');
+  ipcMain.handle('app:version',()=>app.getVersion());
   const youtubeReferer = app.isPackaged ? packagedYouTubeReferer : `${process.env.VITE_DEV_SERVER_URL ?? 'http://127.0.0.1:5173'}/`;
   session.defaultSession.webRequest.onBeforeSendHeaders({urls:['https://www.youtube.com/*','https://youtube.com/*']},(details,callback)=>{
     details.requestHeaders.Referer=youtubeReferer;
