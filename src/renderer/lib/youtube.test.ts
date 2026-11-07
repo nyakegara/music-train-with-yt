@@ -1,5 +1,5 @@
 import {beforeEach,describe,expect,it} from 'vitest';
-import {parseYouTubeId,shouldLoop,nextBeatTime,loopStartAt,loopEndAt,eligibilityServiceMissing,loadSettings,saveSettings,DEFAULT_SETTINGS,sanitizeSettings} from './youtube';
+import {parseYouTubeId,shouldLoop,nextBeatTime,loopStartAt,loopEndAt,eligibilityServiceMissing,loadSettings,saveSettings,DEFAULT_SETTINGS,sanitizeSettings,youtubePlayerOrigin} from './youtube';
 describe('YouTube URL parser',()=>{it.each([
  ['https://www.youtube.com/watch?v=dQw4w9WgXcQ&t=18s','dQw4w9WgXcQ'],
  ['https://youtu.be/dQw4w9WgXcQ?si=abc','dQw4w9WgXcQ'],
@@ -8,6 +8,7 @@ describe('YouTube URL parser',()=>{it.each([
  ['https://example.com/watch?v=dQw4w9WgXcQ',null],
 ])('%s',(url,id)=>expect(parseYouTubeId(url)).toBe(id));});
 describe('release configuration',()=>{it('requires an HTTPS eligibility service in release builds but allows local development',()=>{expect(eligibilityServiceMissing(false,undefined)).toBe(true);expect(eligibilityServiceMissing(false,'not a URL')).toBe(true);expect(eligibilityServiceMissing(false,'http://worker.example')).toBe(true);expect(eligibilityServiceMissing(false,'https://worker.example')).toBe(false);expect(eligibilityServiceMissing(true,undefined)).toBe(false);});});
+describe('YouTube player identity',()=>{it('uses a stable HTTPS app origin in packaged builds and the local origin in development',()=>{expect(youtubePlayerOrigin(false,'file://')).toBe('https://com.musictrain.desktop');expect(youtubePlayerOrigin(true,'http://127.0.0.1:5173')).toBe('http://127.0.0.1:5173');});});
 describe('stored practice settings',()=>{
  beforeEach(()=>localStorage.clear());
  it('saves settings independently per video and restores them',()=>{const settings={...DEFAULT_SETTINGS,bpm:132,speed:0.75};expect(saveSettings('dQw4w9WgXcQ',settings)).toBe(true);expect(loadSettings('dQw4w9WgXcQ')).toEqual(settings);expect(loadSettings('M7lc1UVf-VE')).toEqual(DEFAULT_SETTINGS);});

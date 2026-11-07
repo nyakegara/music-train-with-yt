@@ -2,6 +2,7 @@ import { app, BrowserWindow, session, shell } from 'electron';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 const here = path.dirname(fileURLToPath(import.meta.url));
+const youtubeAppReferer = 'https://com.musictrain.desktop/';
 function createWindow() {
   const window = new BrowserWindow({ width:1420,height:900,minWidth:900,minHeight:700,backgroundColor:'#10100f',webPreferences:{contextIsolation:true,nodeIntegration:false,sandbox:true} });
   window.webContents.setWindowOpenHandler(({ url }) => {
@@ -19,7 +20,7 @@ function createWindow() {
 app.whenReady().then(()=>{
   app.setAppUserModelId('com.musictrain.desktop');
   session.defaultSession.webRequest.onBeforeSendHeaders({urls:['https://www.youtube.com/*','https://youtube.com/*']},(details,callback)=>{
-    details.requestHeaders.Referer='https://com.musictrain.desktop/';
+    details.requestHeaders.Referer=youtubeAppReferer;
     callback({requestHeaders:details.requestHeaders});
   });
   createWindow();app.on('activate',()=>{if(BrowserWindow.getAllWindows().length===0)createWindow();});

@@ -28,6 +28,10 @@ export function eligibilityServiceMissing(isDevelopment: boolean, endpoint: stri
   }
 }
 
+export function youtubePlayerOrigin(isDevelopment: boolean, localOrigin: string): string {
+  return isDevelopment ? localOrigin : 'https://com.musictrain.desktop';
+}
+
 export type PracticeSettings = {
   bpm: number;
   firstBeat: number;
