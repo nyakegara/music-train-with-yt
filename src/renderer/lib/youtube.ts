@@ -183,7 +183,7 @@ const BEAT_TOLERANCE_SECONDS = 0.02;
 
 export function beatIndexAt(time: number, firstBeat: number, bpm: number): number {
   if (!Number.isFinite(time) || !Number.isFinite(firstBeat) || !Number.isFinite(bpm) || bpm <= 0) return -1;
-  if (time < firstBeat - BEAT_TOLERANCE_SECONDS) return -1;
+  if (time < firstBeat) return -1;
   return Math.max(0, Math.floor((time - firstBeat + BEAT_TOLERANCE_SECONDS) / (60 / bpm)));
 }
 

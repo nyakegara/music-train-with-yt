@@ -4,7 +4,7 @@
 
 **Goal:** Show a visual beat cue that tracks the YouTube recording in the existing metronome card.
 
-**Architecture:** Add a pure helper that maps recording position to a zero-based beat index using the scheduler's 20 ms tolerance. Render the index modulo the selected meter in the existing beat line; derive active state from the existing player, metronome, and position state.
+**Architecture:** Add a pure helper that maps recording position to a zero-based beat index. Keep the first-beat anchor strict and apply the scheduler's 20 ms tolerance to later boundaries. Render the index modulo the selected meter in the existing beat line; derive active state from the existing player, metronome, and actual position state.
 
 **Tech Stack:** React, TypeScript, Vitest, Testing Library.
 
@@ -19,10 +19,10 @@
 ## Review Focus
 
 - Before the marked first beat: no marker is active.
-- At beat boundaries and within 20 ms: visual beat matches the sound scheduler's tolerance.
+- At the first-beat anchor the indicator turns on exactly at the marked position; at later boundaries it follows the sound scheduler's 20 ms tolerance.
 - 3/4 and 4/4: render the correct number of markers and wrap the active beat within the bar.
 - Pause, buffering, player error, and metronome off: every marker is dim.
-- Seek or speed change: use the latest actual video position.
+- Seek or speed change: use the latest actual video position, even if it differs from the requested seek position.
 - Accessibility: concise label updates without a live announcement stream.
 
 ---
@@ -60,6 +60,6 @@
 
 ### Task 3: Review and PR
 
-- [ ] Request a read-only whole-branch review; fix Critical/Important findings and record any deferred minor.
+- [x] Request a read-only whole-branch review; fix the early first-beat activation and inactive downbeat color, and add direct coverage for 4/4 wrap, player error, and delayed seek reconciliation.
 - [ ] Open an issue-linked PR for #29.
 - [ ] Run the final full test suite through `task-done`, production build, and `git diff --check`; record the result.

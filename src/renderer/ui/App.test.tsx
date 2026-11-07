@@ -1,5 +1,7 @@
 import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { readFileSync } from 'node:fs';
+import { resolve } from 'node:path';
 import App from './App';
 import { YOUTUBE_API_TIMEOUT_MS } from '../lib/youtubePlayerApi';
 
@@ -525,12 +527,14 @@ describe('YouTube player lifecycle', () => {
     const scheduled = MockAudioContext.instance.oscillators.at(-1)!;
     const oscillatorCount = MockAudioContext.instance.oscillators.length;
     expect(scheduled.start).toHaveBeenCalled();
+    expect(screen.getByRole('img', { name: 'Текущая доля: 1 из 4' }).querySelectorAll('.is-active')).toHaveLength(1);
 
     act(() => player.options.events.onError({ target: player }));
     expect((screen.getByRole('button', { name: 'Играть' }) as HTMLButtonElement).disabled).toBe(true);
     const metronomeSwitch = screen.getByRole('switch') as HTMLButtonElement;
     expect(metronomeSwitch.disabled).toBe(true);
     expect(metronomeSwitch.getAttribute('aria-checked')).toBe('false');
+    expect(screen.getByRole('img', { name: 'Метроном неактивен' }).querySelectorAll('.is-active')).toHaveLength(0);
     expect(scheduled.stop).toHaveBeenCalled();
     player.currentTime = 1;
     await act(async () => { await vi.advanceTimersByTimeAsync(100); });
@@ -624,6 +628,19 @@ describe('YouTube player lifecycle', () => {
     expect(beatLine.querySelectorAll('.is-active')).toHaveLength(0);
   });
 
+  it('keeps the inactive downbeat visually muted', () => {
+    const style = document.createElement('style');
+    style.textContent = readFileSync(resolve(process.cwd(), 'src/renderer/ui/styles.css'), 'utf8');
+    document.head.appendChild(style);
+    try {
+      render(<App />);
+      const firstMarker = screen.getByRole('img', { name: 'Метроном неактивен' }).querySelector('span')!;
+      expect(getComputedStyle(firstMarker).backgroundColor).toBe('rgb(55, 55, 47)');
+    } finally {
+      style.remove();
+    }
+  });
+
   it('follows the actual video position through the selected meter and playback-rate changes', async () => {
     vi.useFakeTimers();
     localStorage.setItem('practice:dQw4w9WgXcQ', JSON.stringify({
@@ -656,6 +673,37 @@ describe('YouTube player lifecycle', () => {
     await act(async () => { await vi.advanceTimersByTimeAsync(80); });
     beatLine = screen.getByRole('img', { name: 'Текущая доля: 2 из 3' });
     expect(beatLine.querySelectorAll('span')[1].classList.contains('is-active')).toBe(true);
+
+    fireEvent.click(screen.getByRole('button', { name: 'Размер такта 4/4' }));
+    beatLine = screen.getByRole('img', { name: 'Текущая доля: 1 из 4' });
+    expect(beatLine.querySelectorAll('span')[0].classList.contains('is-downbeat')).toBe(true);
+  });
+
+  it('reconciles the beat indicator with the actual position after a delayed seek', async () => {
+    vi.useFakeTimers();
+    localStorage.setItem('practice:dQw4w9WgXcQ', JSON.stringify({
+      bpm: 100, firstBeat: 0, timeSignature: 4, speed: 1, loopA: null, loopB: null, metronomeEnabled: false, volume: 0.35,
+    }));
+    render(<App />);
+    await act(async () => { window.onYouTubeIframeAPIReady?.(); });
+    fireEvent.change(screen.getByLabelText('ССЫЛКА НА ВИДЕО'), { target: { value: 'https://youtu.be/dQw4w9WgXcQ' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Загрузить видео' }));
+    const player = MockYouTubePlayer.instances[0];
+    act(() => player.options.events.onReady({ target: player }));
+    player.seekTo.mockImplementation(() => {});
+    player.currentTime = 0.65;
+    act(() => player.playVideo());
+    fireEvent.click(screen.getByRole('switch'));
+    await act(async () => { await vi.advanceTimersByTimeAsync(80); });
+    expect(screen.getByRole('img', { name: 'Текущая доля: 2 из 4' }).querySelectorAll('.is-active')).toHaveLength(1);
+
+    fireEvent.change(screen.getByRole('slider', { name: 'Позиция видео' }), { target: { value: '1.25' } });
+    expect(player.seekTo).toHaveBeenLastCalledWith(1.25, true);
+    expect(screen.getByRole('img', { name: 'Текущая доля: 3 из 4' }).querySelectorAll('.is-active')).toHaveLength(1);
+
+    player.currentTime = 0.65;
+    await act(async () => { await vi.advanceTimersByTimeAsync(80); });
+    expect(screen.getByRole('img', { name: 'Текущая доля: 2 из 4' }).querySelectorAll('.is-active')).toHaveLength(1);
   });
 
   it('dims every beat marker during buffering, pause, and when the metronome is off', async () => {

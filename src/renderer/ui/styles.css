@@ -17,3 +17,4 @@
 .beat-line .beat-marker{background:#37372f;opacity:.55;transition:background-color .08s linear,opacity .08s linear,height .08s linear}
 .beat-line .beat-marker.is-active{height:4px;background:var(--mint);opacity:1}
 .beat-line .beat-marker.is-downbeat.is-active{background:var(--amber)}
+.beat-line span.beat-marker{background:#37372f}
