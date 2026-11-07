@@ -65,6 +65,20 @@ describe('YouTube player lifecycle', () => {
   });
   afterEach(() => { cleanup(); vi.useRealTimers(); vi.unstubAllGlobals(); });
 
+  it('keeps video controls disabled until a video player is ready', async () => {
+    render(<App />);
+    await act(async () => { window.onYouTubeIframeAPIReady?.(); });
+    expect((screen.getByRole('button', { name: 'Играть' }) as HTMLButtonElement).disabled).toBe(true);
+    expect((screen.getByRole('button', { name: 'Назад на 5 секунд' }) as HTMLButtonElement).disabled).toBe(true);
+    expect((screen.getByRole('button', { name: /ПОВТОР/ }) as HTMLButtonElement).disabled).toBe(true);
+    expect((screen.getByRole('button', { name: /×/ }) as HTMLButtonElement).disabled).toBe(true);
+    expect((screen.getByRole('switch') as HTMLButtonElement).disabled).toBe(true);
+    expect((screen.getByRole('button', { name: /Отметить первую долю/ }) as HTMLButtonElement).disabled).toBe(true);
+    expect((screen.getByRole('slider', { name: 'Позиция видео' }) as HTMLInputElement).disabled).toBe(true);
+    expect((screen.getByRole('button', { name: 'Увеличить BPM' }) as HTMLButtonElement).disabled).toBe(false);
+    expect(screen.getByText('Сначала загрузи видео, чтобы управлять воспроизведением.')).toBeTruthy();
+  });
+
   it('recreates the player when the same video is loaded again', async () => {
     localStorage.setItem('practice:dQw4w9WgXcQ', JSON.stringify({
       bpm: 100, firstBeat: 0, speed: 0.75, loopA: null, loopB: null, metronomeEnabled: false, volume: 0.35,
