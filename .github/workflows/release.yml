@@ -1,0 +1,46 @@
+name: Windows release
+
+on:
+  push:
+    tags:
+      - 'v*.*.*'
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: 22
+          cache: npm
+      - name: Verify package version matches tag
+        shell: pwsh
+        run: |
+          $version = (Get-Content package.json -Raw | ConvertFrom-Json).version
+          if ("v$version" -cne $env:GITHUB_REF_NAME) { throw "Tag $env:GITHUB_REF_NAME does not match package version $version" }
+      - run: npm ci
+      - run: npm test
+      - name: Build Windows installer
+        run: npm run dist:win
+        env:
+          VITE_ELIGIBILITY_API: https://music-train-eligibility.musictrain.workers.dev
+      - name: Publish GitHub Release
+        uses: softprops/action-gh-release@8a0cd651e5b2365bd640854a3fa5dfc70e4875f3 # v3.0.4
+        with:
+          name: Music Train ${{ github.ref_name }}
+          body: |
+            Early alpha for Windows 10/11 x64.
+
+            Paste an eligible YouTube link, choose a slower playback rate, mark a loop, and practice with the metronome. Training settings are stored locally per video.
+
+            Known limits: the video must be playable with YouTube embedding; automatic beat detection and tab transcription are not included. The installer is unsigned, so Windows may show an unknown publisher warning.
+          generate_release_notes: true
+          prerelease: ${{ startsWith(github.ref_name, 'v0.') || contains(github.ref_name, '-') }}
+          fail_on_unmatched_files: true
+          files: release/*.exe
