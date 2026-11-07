@@ -60,7 +60,6 @@
 
 ### Task 3: Review and PR
 
-- [ ] Run the final full test suite through `task-done` and record the result.
 - [ ] Request a read-only whole-branch review; fix Critical/Important findings and record any deferred minor.
 - [ ] Open an issue-linked PR for #29.
-- [ ] Merge after review and green CI.
+- [ ] Run the final full test suite through `task-done`, production build, and `git diff --check`; record the result.
