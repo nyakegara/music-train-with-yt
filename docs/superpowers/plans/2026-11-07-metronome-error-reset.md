@@ -35,4 +35,4 @@
 - [x] Run the focused test file and full test suite.
 - [x] Run `npm run build` and `git diff --check`.
 - [x] Commit the implementation and tests.
-- [ ] Open an issue-linked PR for #26.
+- [x] Open issue-linked PR #28 for #26.
