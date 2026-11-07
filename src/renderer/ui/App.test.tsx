@@ -63,7 +63,77 @@ describe('YouTube player lifecycle', () => {
     vi.stubGlobal('AudioContext', MockAudioContext);
     window.YT = { Player: MockYouTubePlayer };
   });
-  afterEach(() => { cleanup(); vi.useRealTimers(); vi.unstubAllGlobals(); });
+  afterEach(() => { cleanup(); vi.useRealTimers(); vi.unstubAllGlobals(); vi.unstubAllEnvs(); });
+
+  it('shows a retry delay, keeps the pasted link, and retries only after another click', async () => {
+    vi.stubEnv('VITE_ELIGIBILITY_API', 'https://eligibility.example');
+    const fetchMock = vi.fn().mockResolvedValue({
+      ok: false,
+      headers: { get: (name: string) => name.toLowerCase() === 'retry-after' ? '45' : null },
+      json: vi.fn().mockResolvedValue({ error: 'service_unavailable', retryable: true }),
+    });
+    vi.stubGlobal('fetch', fetchMock);
+    render(<App />);
+    const url = 'https://youtu.be/dQw4w9WgXcQ';
+    const input = screen.getByLabelText('ССЫЛКА НА ВИДЕО') as HTMLInputElement;
+    fireEvent.change(input, { target: { value: url } });
+    const loadButton = screen.getByRole('button', { name: 'Загрузить видео' });
+
+    fireEvent.click(loadButton);
+    await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(1));
+    expect(fetchMock).toHaveBeenCalledWith('https://eligibility.example/v1/videos/dQw4w9WgXcQ/eligibility');
+    expect(screen.getByRole('alert').textContent).toContain('45 секунд');
+    expect(input.value).toBe(url);
+    expect(MockYouTubePlayer.instances).toHaveLength(0);
+
+    fireEvent.click(loadButton);
+    await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(2));
+    expect(input.value).toBe(url);
+  });
+
+  it('shows quota guidance without an immediate retry delay', async () => {
+    vi.stubEnv('VITE_ELIGIBILITY_API', 'https://eligibility.example');
+    const fetchMock = vi.fn().mockResolvedValue({
+      ok: false,
+      headers: { get: () => '120' },
+      json: vi.fn().mockResolvedValue({ error: 'quota_exceeded', retryable: false }),
+    });
+    vi.stubGlobal('fetch', fetchMock);
+    render(<App />);
+    const url = 'https://youtu.be/dQw4w9WgXcQ';
+    const input = screen.getByLabelText('ССЫЛКА НА ВИДЕО') as HTMLInputElement;
+    fireEvent.change(input, { target: { value: url } });
+    fireEvent.click(screen.getByRole('button', { name: 'Загрузить видео' }));
+
+    await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(1));
+    const alert = screen.getByRole('alert').textContent ?? '';
+    expect(alert.toLowerCase()).toContain('квот');
+    expect(alert).not.toContain('120');
+    expect(alert).not.toContain('через');
+    expect(input.value).toBe(url);
+  });
+
+  it('shows service configuration guidance when service_unavailable is not retryable', async () => {
+    vi.stubEnv('VITE_ELIGIBILITY_API', 'https://eligibility.example');
+    const fetchMock = vi.fn().mockResolvedValue({
+      ok: false,
+      headers: { get: () => '120' },
+      json: vi.fn().mockResolvedValue({ error: 'service_unavailable', retryable: false }),
+    });
+    vi.stubGlobal('fetch', fetchMock);
+    render(<App />);
+    const url = 'https://youtu.be/dQw4w9WgXcQ';
+    const input = screen.getByLabelText('ССЫЛКА НА ВИДЕО') as HTMLInputElement;
+    fireEvent.change(input, { target: { value: url } });
+    fireEvent.click(screen.getByRole('button', { name: 'Загрузить видео' }));
+
+    await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(1));
+    const alert = screen.getByRole('alert').textContent ?? '';
+    expect(alert).toContain('не настроен');
+    expect(alert).not.toContain('120');
+    expect(alert).not.toContain('через');
+    expect(input.value).toBe(url);
+  });
 
   it('keeps video controls disabled until a video player is ready', async () => {
     render(<App />);

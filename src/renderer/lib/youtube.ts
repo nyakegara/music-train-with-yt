@@ -28,6 +28,52 @@ export function eligibilityServiceMissing(isDevelopment: boolean, endpoint: stri
   }
 }
 
+function russianCount(value: number, forms: [string, string, string]): string {
+  const lastTwo = value % 100;
+  const last = value % 10;
+  const form = lastTwo >= 11 && lastTwo <= 14 ? forms[2] : last === 1 ? forms[0] : last >= 2 && last <= 4 ? forms[1] : forms[2];
+  return `${value} ${form}`;
+}
+
+function formatRetryDelay(retryAfter: string | null): string | null {
+  if (!retryAfter || !/^\d+$/.test(retryAfter)) return null;
+  const seconds = Number(retryAfter);
+  if (!Number.isSafeInteger(seconds) || seconds < 1 || seconds > 3600) return null;
+  if (seconds < 60) return russianCount(seconds, ['секунду', 'секунды', 'секунд']);
+
+  const minutes = Math.floor(seconds / 60);
+  const remainingSeconds = seconds % 60;
+  return remainingSeconds === 0
+    ? russianCount(minutes, ['минуту', 'минуты', 'минут'])
+    : `${russianCount(minutes, ['минуту', 'минуты', 'минут'])} ${russianCount(remainingSeconds, ['секунду', 'секунды', 'секунд'])}`;
+}
+
+export function eligibilityErrorMessage(errorCode: string | undefined, retryAfter: string | null, retryable?: boolean): string {
+  const delay = retryable === false ? null : formatRetryDelay(retryAfter);
+  const retryGuidance = delay ? ` Попробуй снова через ${delay}.` : ' Попробуй позже.';
+
+  switch (errorCode) {
+    case 'rate_limited':
+      return `Слишком много проверок за короткое время.${retryGuidance}`;
+    case 'upstream_rate_limited':
+      return `YouTube временно ограничил проверку видео.${retryGuidance}`;
+    case 'upstream_unavailable':
+      return `Сервис проверки видео временно недоступен.${retryGuidance}`;
+    case 'service_unavailable':
+      return retryable
+        ? `Сервис проверки временно ограничил запросы.${retryGuidance}`
+        : 'Сервис проверки не настроен. Попробуй позже.';
+    case 'quota_exceeded':
+      return 'Квота YouTube для проверки видео исчерпана. Попробуй позже.';
+    case 'youtube_api_forbidden':
+      return 'Сервису проверки запрещён доступ к YouTube. Требуется исправить настройки сервиса.';
+    case 'upstream_rejected':
+      return 'YouTube отклонил запрос проверки. Попробуй позже.';
+    default:
+      return 'Не удалось проверить видео. Попробуй позже.';
+  }
+}
+
 export function youtubePlayerOrigin(isDevelopment: boolean, localOrigin: string): string {
   return isDevelopment ? localOrigin : 'https://com.musictrain.desktop';
 }

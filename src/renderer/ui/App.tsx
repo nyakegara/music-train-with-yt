@@ -1,8 +1,6 @@
 import {useCallback,useEffect,useRef,useState} from 'react';
 import {Activity,ArrowDownToLine,Check,ChevronDown,CircleHelp,ExternalLink,Headphones,Link2,Repeat2,AudioLines,Metronome,Music2,Pause,Play,Plus,RotateCcw,SkipBack,SkipForward,Volume2,VolumeX} from 'lucide-react';
-import {DEFAULT_SETTINGS,loadSettings,parseYouTubeId,PracticeSettings,saveSettings,shouldLoop,loopStartAt,loopEndAt,eligibilityServiceMissing,youtubePlayerOrigin,nextBeatSchedule,isDownbeat,clampPosition} from '../lib/youtube';
-
-const eligibilityApi = import.meta.env.VITE_ELIGIBILITY_API as string | undefined;
+import {DEFAULT_SETTINGS,loadSettings,parseYouTubeId,PracticeSettings,saveSettings,shouldLoop,loopStartAt,loopEndAt,eligibilityServiceMissing,eligibilityErrorMessage,youtubePlayerOrigin,nextBeatSchedule,isDownbeat,clampPosition} from '../lib/youtube';
 
 declare global { interface Window { YT:any; onYouTubeIframeAPIReady?:()=>void; musicTrain?:{version:()=>Promise<string>} } }
 const format=(n:number)=>`${Math.floor(n/60).toString().padStart(2,'0')}:${Math.floor(n%60).toString().padStart(2,'0')}`;
@@ -20,7 +18,33 @@ export default function App(){
  const closeShortcuts=()=>setShortcutsOpen(false);
  useEffect(()=>{if(shortcutsOpen){const focusable=shortcutDialog.current?.querySelector<HTMLElement>('button:not([disabled]),[href],input:not([disabled]),select:not([disabled]),textarea:not([disabled]),[tabindex]:not([tabindex="-1"])');focusable?.focus();}else{const target=shortcutReturnFocus.current;shortcutReturnFocus.current=null;if(target?.isConnected)target.focus();}},[shortcutsOpen]);
  useEffect(()=>{if(videoId)saveSettings(videoId,settings);},[videoId,settings]);
- const loadVideo=async(value=input)=>{const request=++eligibilityRequest.current;const id=parseYouTubeId(value);if(!id){setErrorVideoId(null);setError('Не получилось распознать ссылку. Проверь адрес и попробуй ещё раз.');return;}setError('');setErrorVideoId(null);if(eligibilityServiceMissing(import.meta.env.DEV,eligibilityApi)){setErrorVideoId(id);setError('Проверка видео не настроена. Попробуй позже.');return;}if(eligibilityApi){try{const response=await fetch(`${eligibilityApi.replace(/\/$/,'')}/v1/videos/${id}/eligibility`);if(request!==eligibilityRequest.current)return;if(!response.ok)throw new Error('eligibility check failed');const result=await response.json() as {eligible:boolean;reason?:string};if(request!==eligibilityRequest.current)return;if(!result.eligible){setErrorVideoId(id);setError(result.reason==='made_for_kids'?'Это видео предназначено для детей и не будет встроено.':'Видео недоступно для встраивания.');return;}}catch{if(request!==eligibilityRequest.current)return;setErrorVideoId(id);setError('Не удалось проверить видео. Проверь подключение и попробуй снова.');return;}}if(request!==eligibilityRequest.current)return;setError('');setInput(value);setVideoId(id);setPlayerReady(false);setPlayerGeneration((generation)=>generation+1);setSettings(loadSettings(id));setCurrent(0);setDuration(0);setPlaying(false);setMuted(false);};
+ const loadVideo=async(value=input)=>{
+  const request=++eligibilityRequest.current;
+  const id=parseYouTubeId(value);
+  if(!id){setErrorVideoId(null);setError('Не получилось распознать ссылку. Проверь адрес и попробуй ещё раз.');return;}
+  setError('');setErrorVideoId(null);
+  const eligibilityApi=import.meta.env.VITE_ELIGIBILITY_API as string|undefined;
+  if(eligibilityServiceMissing(import.meta.env.DEV,eligibilityApi)){setErrorVideoId(id);setError('Проверка видео не настроена. Попробуй позже.');return;}
+  if(eligibilityApi){
+   try{
+    const response=await fetch(`${eligibilityApi.replace(/\/$/,'')}/v1/videos/${id}/eligibility`);
+    if(request!==eligibilityRequest.current)return;
+    const body=await response.json() as unknown;
+    if(request!==eligibilityRequest.current)return;
+    if(!response.ok){
+     const errorBody=typeof body==='object'&&body!==null&&!Array.isArray(body)?body as Record<string,unknown>:{};
+     const retryable=typeof errorBody.retryable==='boolean'?errorBody.retryable:undefined;
+     setErrorVideoId(id);
+     setError(eligibilityErrorMessage(typeof errorBody.error==='string'?errorBody.error:undefined,response.headers.get('Retry-After'),retryable));
+     return;
+    }
+    const result=body as {eligible:boolean;reason?:string};
+    if(!result.eligible){setErrorVideoId(id);setError(result.reason==='made_for_kids'?'Это видео предназначено для детей и не будет встроено.':'Видео недоступно для встраивания.');return;}
+   }catch{if(request!==eligibilityRequest.current)return;setErrorVideoId(id);setError('Не удалось проверить видео. Проверь подключение и попробуй снова.');return;}
+  }
+  if(request!==eligibilityRequest.current)return;
+  setError('');setInput(value);setVideoId(id);setPlayerReady(false);setPlayerGeneration((generation)=>generation+1);setSettings(loadSettings(id));setCurrent(0);setDuration(0);setPlaying(false);setMuted(false);
+ };
  useEffect(()=>{const script=document.createElement('script');script.src='https://www.youtube.com/iframe_api';document.head.appendChild(script);window.onYouTubeIframeAPIReady=()=>{setReady(true);};return()=>{script.remove();};},[]);
  useEffect(()=>{if(!ready||!videoId||!window.YT?.Player)return;const target=document.getElementById('youtube-player');if(!target)return;const instance=new window.YT.Player(target,{width:'100%',height:'100%',videoId,playerVars:{playsinline:1,rel:0,origin:youtubePlayerOrigin(import.meta.env.DEV,window.location.origin)},events:{onReady:(e:any)=>{if(player.current!==e.target)return;setDuration(e.target.getDuration());setPlayerReady(true);const supportedRates=e.target.getAvailablePlaybackRates();setAvailableRates(supportedRates);const restoredRate=supportedRates.includes(settings.speed)?settings.speed:1;setMuted(false);e.target.unMute();e.target.setPlaybackRate(restoredRate);update({speed:restoredRate});},onPlaybackRateChange:(e:any)=>{if(player.current!==e.target)return;update({speed:e.target.getPlaybackRate()});},onStateChange:(e:any)=>{if(player.current!==e.target)return;setPlaying(e.data===1);if(e.data===1){setDuration(e.target.getDuration());setAvailableRates(e.target.getAvailablePlaybackRates());}},onError:(e:any)=>{if(player.current!==e.target)return;setPlayerReady(false);setErrorVideoId(videoId);setError('Это видео нельзя воспроизвести здесь. Проверь доступность или открой его на YouTube.')}}});player.current=instance;return()=>{instance.destroy?.();if(player.current===instance)player.current=null;};},[ready,videoId,playerGeneration]);
  const cancelPendingClick=()=>{const pending=pendingClick.current,ctx=audio.current;if(!pending||!ctx)return;if(pending.when>ctx.currentTime){try{pending.oscillator.stop();}catch{}pending.oscillator.disconnect();pending.gain.disconnect();}pendingClick.current=null;};
