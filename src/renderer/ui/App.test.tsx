@@ -71,13 +71,18 @@ describe('YouTube player lifecycle', () => {
   afterEach(() => { cleanup(); vi.useRealTimers(); vi.unstubAllGlobals(); vi.unstubAllEnvs(); });
 
   it('shows the remembered video after remount without fetching or starting playback', async () => {
-    localStorage.setItem('lastVideoId', 'dQw4w9WgXcQ');
-    const fetchMock = vi.fn();
+    vi.stubEnv('VITE_ELIGIBILITY_API', 'https://eligibility.example');
+    const fetchMock = vi.fn().mockResolvedValue({ ok: true, json: vi.fn().mockResolvedValue({ eligible: true }) });
     vi.stubGlobal('fetch', fetchMock);
     const first = render(<App />);
     await act(async () => { window.onYouTubeIframeAPIReady?.(); });
+    fireEvent.change(screen.getByLabelText('ССЫЛКА НА ВИДЕО'), { target: { value: 'https://youtu.be/dQw4w9WgXcQ' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Загрузить видео' }));
+    await waitFor(() => expect(localStorage.getItem('lastVideoId')).toBe('dQw4w9WgXcQ'));
     expect(screen.getByRole('button', { name: /dQw4w9WgXcQ/ })).toBeTruthy();
     first.unmount();
+    MockYouTubePlayer.instances = [];
+    fetchMock.mockClear();
     render(<App />);
     expect(screen.getByRole('button', { name: /dQw4w9WgXcQ/ })).toBeTruthy();
     expect(fetchMock).not.toHaveBeenCalled();
@@ -142,6 +147,27 @@ describe('YouTube player lifecycle', () => {
     expect(localStorage.getItem('lastVideoId')).toBeNull();
     expect(localStorage.getItem('practice:dQw4w9WgXcQ')).toBe(settings);
     expect(screen.getByText('Последнее видео появится здесь')).toBeTruthy();
+  });
+
+  it('keeps the remembered card and playback available when clearing storage fails', async () => {
+    localStorage.setItem('lastVideoId', 'dQw4w9WgXcQ');
+    render(<App />);
+    await act(async () => { window.onYouTubeIframeAPIReady?.(); });
+    fireEvent.change(screen.getByLabelText('ССЫЛКА НА ВИДЕО'), { target: { value: 'https://youtu.be/dQw4w9WgXcQ' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Загрузить видео' }));
+    const player = MockYouTubePlayer.instances[0];
+    act(() => player.options.events.onReady({ target: player }));
+    const removeItem = vi.spyOn(Storage.prototype, 'removeItem').mockImplementation(() => { throw new Error('storage unavailable'); });
+    try {
+      fireEvent.click(screen.getByRole('button', { name: 'Очистить последнее видео' }));
+      expect(localStorage.getItem('lastVideoId')).toBe('dQw4w9WgXcQ');
+      expect(screen.getByRole('button', { name: /dQw4w9WgXcQ/ })).toBeTruthy();
+      expect(screen.getByRole('alert').textContent).toContain('Не удалось убрать последнее видео');
+      fireEvent.click(screen.getByRole('button', { name: 'Играть' }));
+      expect(player.playVideo).toHaveBeenCalledTimes(1);
+    } finally {
+      removeItem.mockRestore();
+    }
   });
 
   it('shows a retry delay, keeps the pasted link, and retries only after another click', async () => {
