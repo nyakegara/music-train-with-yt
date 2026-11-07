@@ -3,6 +3,7 @@ export interface Env { YOUTUBE_API_KEY: string; RATE_LIMITER: { limit(options: {
 const maxRetryAfterSeconds = 3600;
 const defaultRetryAfterSeconds = 30;
 const localRetryAfterSeconds = 60;
+const httpDatePattern = /^(?:Mon|Tue|Wed|Thu|Fri|Sat|Sun), \d{2} (?:Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec) \d{4} \d{2}:\d{2}:\d{2} GMT$/;
 
 const json = (body: unknown, status = 200, extraHeaders?: HeadersInit) => {
   const headers = new Headers({
@@ -26,8 +27,9 @@ const retryAfterSeconds = (value: string | null, now = Date.now()) => {
   let seconds: number;
   if (/^\d+$/.test(trimmed)) seconds = Number(trimmed);
   else {
+    if (!httpDatePattern.test(trimmed)) return defaultRetryAfterSeconds;
     const date = Date.parse(trimmed);
-    if (!Number.isFinite(date)) return defaultRetryAfterSeconds;
+    if (!Number.isFinite(date) || new Date(date).toUTCString() !== trimmed) return defaultRetryAfterSeconds;
     seconds = Math.ceil((date - now) / 1000);
   }
   if (!Number.isFinite(seconds)) return defaultRetryAfterSeconds;
@@ -37,6 +39,7 @@ const retryAfterSeconds = (value: string | null, now = Date.now()) => {
 const validId = (id: string) => /^[A-Za-z0-9_-]{11}$/.test(id);
 const quotaReasons = new Set(['quotaExceeded', 'dailyLimitExceeded']);
 const rateLimitReasons = new Set(['userRateLimitExceeded', 'rateLimitExceeded', 'servingLimitExceeded']);
+const apiKeyReasons = new Set(['keyInvalid', 'keyExpired']);
 
 async function upstreamFailure(response: Response): Promise<Response> {
   if (response.status === 400 || response.status === 403) {
@@ -44,6 +47,7 @@ async function upstreamFailure(response: Response): Promise<Response> {
       const data = await response.json() as { error?: { errors?: Array<{ reason?: string }> } };
       const reasons = data.error?.errors?.map((error) => error.reason) ?? [];
       if (reasons.some((reason) => reason && rateLimitReasons.has(reason))) return serviceError('upstream_rate_limited', true, 503, retryAfterSeconds(response.headers.get('Retry-After')));
+      if (response.status === 400 && reasons.some((reason) => reason && apiKeyReasons.has(reason))) return serviceError('youtube_api_forbidden', false, 503);
       if (response.status === 403 && reasons.some((reason) => reason && quotaReasons.has(reason))) return serviceError('quota_exceeded', false, 503);
     } catch { /* The upstream error body is optional; keep the generic diagnosis. */ }
     if (response.status === 403) return serviceError('youtube_api_forbidden', false, 503);
@@ -74,10 +78,15 @@ export default {
       apiUrl.search = new URLSearchParams({ part: 'id,status', id: videoId }).toString();
       const response = await fetch(apiUrl, { headers: { accept: 'application/json', 'x-goog-api-key': env.YOUTUBE_API_KEY }, signal: AbortSignal.timeout(6000) });
       if (!response.ok) return upstreamFailure(response);
-      const data = await response.json() as { items?: Array<{ status?: { embeddable?: boolean; privacyStatus?: string; madeForKids?: boolean } }> };
-      const item = data.items?.[0];
-      if (!item) return json({ eligible: false, reason: 'unavailable' });
-      const status = item.status ?? {};
+      const data = await response.json() as { items?: unknown };
+      if (!Array.isArray(data.items)) return serviceError('upstream_unavailable', true, 503, defaultRetryAfterSeconds);
+      const rawItem = data.items[0];
+      if (rawItem === undefined) return json({ eligible: false, reason: 'unavailable' });
+      if (rawItem === null || typeof rawItem !== 'object') return serviceError('upstream_unavailable', true, 503, defaultRetryAfterSeconds);
+      const item = rawItem as { status?: unknown };
+      if (item.status === null || typeof item.status !== 'object') return serviceError('upstream_unavailable', true, 503, defaultRetryAfterSeconds);
+      const status = item.status as { embeddable?: boolean; privacyStatus?: string; madeForKids?: boolean };
+      if (typeof status.privacyStatus !== 'string') return serviceError('upstream_unavailable', true, 503, defaultRetryAfterSeconds);
       if (status.madeForKids) return json({ eligible: false, reason: 'made_for_kids' });
       if (status.privacyStatus !== 'public') return json({ eligible: false, reason: 'not_public' });
       if (status.embeddable !== true) return json({ eligible: false, reason: 'embedding_disabled' });

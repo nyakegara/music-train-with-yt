@@ -21,10 +21,12 @@ Worker errors use a sanitized JSON body with `error` and `retryable` fields. The
 | 503 | `upstream_rate_limited` | Yes | Covers YouTube HTTP 429 and 403 rate-limit reasons; retry after YouTube's delay, bounded to 1–3600 seconds; defaults to 30 seconds. |
 | 503 | `upstream_unavailable` | Yes | Retry after YouTube's delay, bounded to 1–3600 seconds; defaults to 30 seconds. |
 | 503 | `quota_exceeded` | No | YouTube API quota is exhausted; wait for quota recovery. |
-| 503 | `youtube_api_forbidden` | No | Check the Worker API key and its YouTube Data API restriction. |
+| 503 | `youtube_api_forbidden` | No | Check the Worker API key and its YouTube Data API restriction; YouTube reports `keyInvalid`/`keyExpired` as HTTP 400 and other authorization failures as HTTP 403. |
 | 503 | `service_unavailable` | Depends on `retryable` | A missing API key is non-retryable; a Cloudflare rate-limiter failure is retryable after 30 seconds. |
 | 502 | `upstream_rejected` | No | The upstream rejected an unexpected request. |
 
 YouTube per-user and short-window rate-limit reasons (`userRateLimitExceeded`, `rateLimitExceeded`, and `servingLimitExceeded`) are transient; they are not classified as daily quota exhaustion. YouTube may report `rateLimitExceeded` with HTTP 400 or 403, and the Worker normalizes either response.
+
+Reason codes and statuses follow [YouTube Data API global error definitions](https://developers.google.com/youtube/data/reference/rest/v3/core_errors).
 
 `Retry-After` accepts either delta-seconds or an HTTP date from YouTube. The Worker normalizes it to an integer between 1 and 3600 seconds. Clients should not retry automatically; they can use the returned code and delay to guide a manual retry.

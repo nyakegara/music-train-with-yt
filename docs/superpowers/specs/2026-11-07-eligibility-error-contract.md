@@ -17,13 +17,14 @@ All Worker error bodies have `{ error: string, retryable: boolean }`. They conta
 - The app's IP limiter returns HTTP 429, `rate_limited`, `retryable: true`, and `Retry-After: 60`.
 - YouTube HTTP 429 returns HTTP 503, `upstream_rate_limited`, `retryable: true`.
 - YouTube HTTP 400/403 rate-limit reasons (`userRateLimitExceeded`, `rateLimitExceeded`, `servingLimitExceeded`) also return HTTP 503, `upstream_rate_limited`, `retryable: true`.
-- YouTube HTTP 5xx, fetch failures, timeouts, and malformed success JSON return HTTP 503, `upstream_unavailable`, `retryable: true`.
+- YouTube HTTP 5xx, fetch failures, timeouts, invalid success JSON, or a malformed success response shape return HTTP 503, `upstream_unavailable`, `retryable: true`.
 - YouTube 403 daily quota reasons (`quotaExceeded`, `dailyLimitExceeded`) return HTTP 503, `quota_exceeded`, `retryable: false`.
+- YouTube HTTP 400 API key reasons (`keyInvalid`, `keyExpired`) return HTTP 503, `youtube_api_forbidden`, `retryable: false`.
 - Other YouTube 403 responses return HTTP 503, `youtube_api_forbidden`, `retryable: false`.
 - Missing Worker API-key configuration returns HTTP 503, `service_unavailable`, `retryable: false`.
 - A failure in Cloudflare's rate-limit service returns HTTP 503, `service_unavailable`, `retryable: true`, and the default `Retry-After`.
 - Other upstream rejections return a sanitized non-retryable error.
-- Retryable upstream responses normalize `Retry-After` seconds or HTTP-date to a delta in the inclusive range 1–3600 seconds. Missing or invalid values use 30 seconds. `Retry-After` is exposed through CORS; preflight advertises the same expose header.
+- Retryable upstream responses normalize `Retry-After` delta-seconds or a valid HTTP-date to a delta in the inclusive range 1–3600 seconds. Missing or invalid values use 30 seconds. Date parsing must reject non-HTTP strings JavaScript `Date.parse` might accept. `Retry-After` is exposed through CORS; preflight advertises the same expose header.
 - The renderer reads the error code and retry delay. Temporary errors show a manual retry time; quota/configuration errors say the service needs time or configuration attention. Network failures without an HTTP response keep the existing connection message.
 - The renderer uses `retryable` to distinguish missing API-key configuration from a temporary internal limiter failure that shares the `service_unavailable` code.
 

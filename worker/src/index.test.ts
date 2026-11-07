@@ -55,6 +55,12 @@ describe('eligibility endpoint', () => {
     expect(response.status).toBe(503);
     expect(await response.json()).toEqual({ error: 'youtube_api_forbidden', retryable: false });
   });
+  it.each(['keyInvalid', 'keyExpired'])('recognizes YouTube %s as API key configuration on HTTP 400', async (reason) => {
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(new Response(JSON.stringify({ error: { errors: [{ reason }] } }), { status: 400 })));
+    const response = await worker.fetch(new Request('https://worker.test/v1/videos/dQw4w9WgXcQ/eligibility'), env);
+    expect(response.status).toBe(503);
+    expect(await response.json()).toEqual({ error: 'youtube_api_forbidden', retryable: false });
+  });
   it.each([['userRateLimitExceeded', 403], ['rateLimitExceeded', 403], ['rateLimitExceeded', 400], ['servingLimitExceeded', 403]])('treats YouTube %s from HTTP %i as a temporary rate limit', async (reason, status) => {
     vi.stubGlobal('fetch', vi.fn().mockResolvedValue(new Response(JSON.stringify({ error: { errors: [{ reason }] } }), { status })));
     const response = await worker.fetch(new Request('https://worker.test/v1/videos/dQw4w9WgXcQ/eligibility'), env);
@@ -87,7 +93,14 @@ describe('eligibility endpoint', () => {
     expect(response.headers.get('Retry-After')).toBe('3600');
     expect(body).not.toContain('upstream failure detail');
   });
-  it.each([['absent', undefined, '30'], ['invalid', 'later', '30'], ['zero', '0', '1']])('normalizes %s upstream Retry-After', async (_label, retryAfter, expectedDelay) => {
+  it.each([
+    ['absent', undefined, '30'],
+    ['invalid', 'later', '30'],
+    ['negative', '-1', '30'],
+    ['ISO timestamp', '2026-11-07T12:01:30Z', '30'],
+    ['invalid calendar date', 'Tue, 31 Feb 2026 12:01:30 GMT', '30'],
+    ['zero', '0', '1'],
+  ])('normalizes %s upstream Retry-After', async (_label, retryAfter, expectedDelay) => {
     const headers = new Headers();
     if (retryAfter !== undefined) headers.set('Retry-After', retryAfter);
     vi.stubGlobal('fetch', vi.fn().mockResolvedValue(new Response('upstream unavailable', { status: 502, headers })));
@@ -125,6 +138,13 @@ describe('eligibility endpoint', () => {
     const malformedResponse = await worker.fetch(request, env);
     expect(malformedResponse.status).toBe(503);
     expect(await malformedResponse.json()).toEqual({ error: 'upstream_unavailable', retryable: true });
+  });
+  it.each([{}, { items: null }, { items: 'not-an-array' }, { items: [{}] }, { items: [{ status: null }] }, { items: [{ status: {} }] }])('treats a successful upstream response with malformed shape as temporary failure: %o', async (payload) => {
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(new Response(JSON.stringify(payload))));
+    const response = await worker.fetch(new Request('https://worker.test/v1/videos/dQw4w9WgXcQ/eligibility'), env);
+    expect(response.status).toBe(503);
+    expect(await response.json()).toEqual({ error: 'upstream_unavailable', retryable: true });
+    expect(response.headers.get('Retry-After')).toBe('30');
   });
   it('advertises Retry-After to cross-origin clients on preflight', async () => {
     const response = await worker.fetch(new Request('https://worker.test/v1/videos/dQw4w9WgXcQ/eligibility', { method: 'OPTIONS' }), env);
