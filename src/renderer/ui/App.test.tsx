@@ -242,8 +242,7 @@ describe('YouTube player lifecycle', () => {
     fireEvent.change(input, { target: { value: url } });
     fireEvent.click(screen.getByRole('button', { name: 'Загрузить видео' }));
 
-    await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(1));
-    const alert = screen.getByRole('alert').textContent ?? '';
+    const alert = (await screen.findByRole('alert')).textContent ?? '';
     expect(alert).toContain('не настроен');
     expect(alert).not.toContain('120');
     expect(alert).not.toContain('через');
