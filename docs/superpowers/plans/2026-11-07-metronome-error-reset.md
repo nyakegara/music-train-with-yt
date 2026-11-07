@@ -29,10 +29,10 @@
 - Modify: `src/renderer/ui/App.tsx`
 - Test: `src/renderer/ui/App.test.tsx`
 
-- [ ] Extend `stops metronome scheduling after the active player reports an error` to assert the switch is unchecked after error; extend the stale-player test to assert a replacement player's metronome remains checked after the old player errors.
-- [ ] Run the focused tests and confirm the active-player assertion fails because `aria-checked` remains true while the stale-player assertion passes.
-- [ ] In the existing `player.current === e.target` error path, call `update({ metronomeEnabled: false })`.
-- [ ] Run the focused test file and full test suite.
-- [ ] Run `npm run build` and `git diff --check`.
-- [ ] Commit the implementation and tests.
-- [ ] Open an issue-linked PR for #26; merge after review and green CI.
+- [x] Extend `stops metronome scheduling after the active player reports an error` to assert the switch is unchecked after error; extend the stale-player test to assert a replacement player's metronome remains checked after the old player errors.
+- [x] Run the focused tests and confirm the active-player assertion fails because `aria-checked` remains true while the stale-player assertion passes.
+- [x] In the existing `player.current === e.target` error path, call `update({ metronomeEnabled: false })`.
+- [x] Run the focused test file and full test suite.
+- [x] Run `npm run build` and `git diff --check`.
+- [x] Commit the implementation and tests.
+- [ ] Open an issue-linked PR for #26.
