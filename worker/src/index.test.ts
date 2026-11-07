@@ -16,9 +16,13 @@ describe('eligibility endpoint', () => {
     expect(await response.json()).toEqual({ eligible: false, reason: 'made_for_kids' });
   });
   it('allows an embeddable public video', async () => {
-    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(new Response(JSON.stringify({ items: [{ status: { privacyStatus: 'public', embeddable: true, madeForKids: false } }] }))));
+    const fetchMock = vi.fn().mockResolvedValue(new Response(JSON.stringify({ items: [{ status: { privacyStatus: 'public', embeddable: true, madeForKids: false } }] })));
+    vi.stubGlobal('fetch', fetchMock);
     const response = await worker.fetch(new Request('https://worker.test/v1/videos/dQw4w9WgXcQ/eligibility'), env);
     expect(await response.json()).toEqual({ eligible: true });
+    const [requestUrl, init] = fetchMock.mock.calls[0];
+    expect(String(requestUrl)).not.toContain('key=');
+    expect((init.headers as Record<string, string>)['x-goog-api-key']).toBe('key');
   });
   it('denies videos with embedding disabled', async () => {
     vi.stubGlobal('fetch', vi.fn().mockResolvedValue(new Response(JSON.stringify({ items: [{ status: { privacyStatus: 'public', embeddable: false } }] }))));
