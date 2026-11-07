@@ -362,6 +362,27 @@ describe('YouTube player lifecycle', () => {
     expect(player.seekTo).toHaveBeenLastCalledWith(25, true);
   });
 
+  it('keeps A, B, and M shortcuts working with a Russian keyboard layout', async () => {
+    render(<App />);
+    await act(async () => { window.onYouTubeIframeAPIReady?.(); });
+    fireEvent.change(screen.getByLabelText('ССЫЛКА НА ВИДЕО'), { target: { value: 'https://youtu.be/dQw4w9WgXcQ' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Загрузить видео' }));
+    const player = MockYouTubePlayer.instances[0];
+    act(() => player.options.events.onReady({ target: player }));
+    const position = screen.getByRole('slider', { name: 'Позиция видео' });
+
+    fireEvent.change(position, { target: { value: '12' } });
+    fireEvent.keyDown(window, { key: 'ф', code: 'KeyA' });
+    expect(JSON.parse(localStorage.getItem('practice:dQw4w9WgXcQ')!).loopA).toBe(12);
+
+    fireEvent.change(position, { target: { value: '20' } });
+    fireEvent.keyDown(window, { key: 'и', code: 'KeyB' });
+    expect(JSON.parse(localStorage.getItem('practice:dQw4w9WgXcQ')!).loopB).toBe(20);
+
+    fireEvent.keyDown(window, { key: 'ь', code: 'KeyM' });
+    expect(screen.getByRole('switch').getAttribute('aria-checked')).toBe('true');
+  });
+
   it('ignores held-key repeats for toggles and loop markers but keeps repeated seeking', async () => {
     render(<App />);
     await act(async () => { window.onYouTubeIframeAPIReady?.(); });
