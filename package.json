@@ -1,0 +1,58 @@
+{
+  "name": "music-train-with-yt",
+  "version": "0.1.0",
+  "description": "Windows desktop practice tool for YouTube videos. Paste a video link, slow it down, loop a section, and practice with a synchronized metronome.",
+  "main": "dist/main/main.js",
+  "scripts": {
+    "dev": "concurrently -k \"vite --host 127.0.0.1\" \"wait-on http://127.0.0.1:5173 && electron .\"",
+    "build": "tsc --noEmit && vite build && tsc -p tsconfig.electron.json",
+    "test": "vitest run",
+    "start": "electron .",
+    "dist:win": "node verify-release-config.mjs && npm run build && electron-builder --win nsis"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/nyakegara/music-train-with-yt.git"
+  },
+  "keywords": [],
+  "type": "module",
+  "build": {
+    "appId": "com.musictrain.desktop",
+    "productName": "Music Train",
+    "files": [
+      "dist/**/*",
+      "package.json"
+    ],
+    "directories": {
+      "output": "release"
+    },
+    "win": {
+      "target": "nsis"
+    }
+  },
+  "bugs": {
+    "url": "https://github.com/nyakegara/music-train-with-yt/issues"
+  },
+  "homepage": "https://github.com/nyakegara/music-train-with-yt#readme",
+  "dependencies": {
+    "lucide-react": "^1.70.0",
+    "react": "^19.3.1",
+    "react-dom": "^19.3.1"
+  },
+  "devDependencies": {
+    "@testing-library/jest-dom": "^7.0.1",
+    "@testing-library/react": "^16.3.3",
+    "@types/node": "^26.6.6",
+    "@types/react": "^19.3.0",
+    "@types/react-dom": "^19.3.0",
+    "@vitejs/plugin-react": "^6.2.1",
+    "concurrently": "^10.0.6",
+    "electron": "^45.2.3",
+    "electron-builder": "^26.18.0",
+    "jsdom": "^31.0.0",
+    "typescript": "^7.0.2",
+    "vite": "^8.3.6",
+    "vitest": "^5.1.0",
+    "wait-on": "^9.5.1"
+  }
+}
