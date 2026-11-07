@@ -422,6 +422,11 @@ describe('YouTube player lifecycle', () => {
     fireEvent.change(screen.getByRole('slider', { name: 'Позиция видео' }), { target: { value: '12' } });
     fireEvent.click(handleA);
     expect(JSON.parse(localStorage.getItem('practice:dQw4w9WgXcQ')!).loopA).toBe(12);
+
+    fireEvent.pointerDown(handleA, { pointerId: 9, button: 0, clientX: 155 });
+    fireEvent.pointerUp(handleA, { pointerId: 9, clientX: 400 });
+    fireEvent.click(handleA, { detail: 1 });
+    expect(JSON.parse(localStorage.getItem('practice:dQw4w9WgXcQ')!).loopA).toBe(54);
   });
 
   it('clamps B and A to the 0.1-second gap and stops moving after pointer cancellation', async () => {
@@ -454,6 +459,12 @@ describe('YouTube player lifecycle', () => {
     fireEvent.pointerCancel(handleA, { pointerId: 4, clientX: 1200 });
     fireEvent.pointerMove(handleA, { pointerId: 4, clientX: 500 });
     expect(JSON.parse(localStorage.getItem('practice:dQw4w9WgXcQ')!).loopA).toBe(20);
+
+    fireEvent.pointerDown(handleB, { pointerId: 12, button: 0, clientX: 211 });
+    fireEvent.pointerMove(handleB, { pointerId: 12, clientX: 322 });
+    fireEvent.lostPointerCapture(handleB, { pointerId: 12 });
+    fireEvent.pointerMove(handleB, { pointerId: 12, clientX: 500 });
+    expect(JSON.parse(localStorage.getItem('practice:dQw4w9WgXcQ')!).loopB).toBe(39.96);
   });
 
   it('can set previously unset A and B boundaries by dragging', async () => {
@@ -498,6 +509,33 @@ describe('YouTube player lifecycle', () => {
     fireEvent.pointerUp(handleA, { pointerId: 8, clientX: 400 });
     fireEvent.click(handleA, { detail: 1 });
     expect(JSON.parse(localStorage.getItem('practice:dQw4w9WgXcQ')!).loopA).toBe(12);
+  });
+
+  it('keeps A/B loop polling active during a sustained handle drag', async () => {
+    vi.useFakeTimers();
+    localStorage.setItem('practice:dQw4w9WgXcQ', JSON.stringify({ loopA: 10, loopB: 20 }));
+    const { container } = render(<App />);
+    await act(async () => { window.onYouTubeIframeAPIReady?.(); });
+    fireEvent.change(screen.getByLabelText('ССЫЛКА НА ВИДЕО'), { target: { value: 'https://youtu.be/dQw4w9WgXcQ' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Загрузить видео' }));
+    const player = MockYouTubePlayer.instances[0];
+    act(() => player.options.events.onReady({ target: player }));
+    player.currentTime = 19.5;
+    act(() => player.playVideo());
+    await act(async () => { await vi.advanceTimersByTimeAsync(80); });
+    player.currentTime = 21;
+
+    const track = container.querySelector('.loop-track') as HTMLDivElement;
+    vi.spyOn(track, 'getBoundingClientRect').mockReturnValue({ left: 100, width: 1000, right: 1100, top: 0, bottom: 3, height: 3, x: 100, y: 0, toJSON: () => ({}) } as DOMRect);
+    const handleA = container.querySelector('.handle-a') as HTMLButtonElement;
+    fireEvent.pointerDown(handleA, { pointerId: 10, button: 0, clientX: 155 });
+    fireEvent.pointerMove(handleA, { pointerId: 10, clientX: 200 });
+    await act(async () => { await vi.advanceTimersByTimeAsync(40); });
+    fireEvent.pointerMove(handleA, { pointerId: 10, clientX: 220 });
+    await act(async () => { await vi.advanceTimersByTimeAsync(40); });
+
+    expect(player.seekTo).toHaveBeenLastCalledWith(19.9, true);
+    fireEvent.pointerUp(handleA, { pointerId: 10, clientX: 220 });
   });
 
   it('shows the correct way to reopen shortcut help after clicking the video', async () => {

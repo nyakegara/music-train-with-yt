@@ -21,10 +21,11 @@
 ## Review focus
 
 - Mapping uses the loop track's `getBoundingClientRect()`, not the handle's box.
-- The final click after pointer-up cannot replace the dragged value with the playhead.
+- The final pointer-up coordinate is applied before the drag is finished, and the generated click cannot replace the dragged value with the playhead.
 - Pointer cancellation and lost capture cannot leave a stuck drag.
 - A/B stay bounded and at least 0.1 seconds apart, including when one endpoint is unset.
-- Hit area grows without changing visible handle geometry; names announce A/B and formatted position.
+- A/B occupy separate vertical drag lanes so near-adjacent handles stay independently targetable at their exact X positions; names announce A/B and formatted position.
+- The A/B loop polling interval remains active during repeated endpoint updates.
 
 ---
 
@@ -51,9 +52,10 @@
 - [x] Keep no-movement clicks, Current, and A/B shortcuts intact.
 - [x] Add dynamic accessible names/titles, a larger transparent hit area, and touch behavior without enlarging the visible handle.
 - [x] Run focused component tests.
+- [x] Add regression coverage for stable loop polling during sustained dragging and for the final pointer-up coordinate.
 
 ### Task 3: Review and PR
 
-- [ ] Run full test suite, production build, and `git diff --check`.
-- [ ] Request a read-only code review; fix Critical/Important findings and record deferred minor findings.
+- [x] Run full test suite (119 tests), production build, and `git diff --check`.
+- [x] Request a read-only code review and visual review; fixed the Important loop-polling issue and applied the visual review's separated-lane treatment. Pointer-up precision and lost capture have regression coverage.
 - [ ] Open an issue-linked PR for #31 and merge after CI is green.
