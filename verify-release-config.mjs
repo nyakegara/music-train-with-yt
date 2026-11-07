@@ -1,3 +1,11 @@
+import { readFileSync } from 'node:fs';
+
+const packageJson = JSON.parse(readFileSync(new URL('./package.json', import.meta.url), 'utf8'));
+if (!packageJson.scripts?.['dist:win']?.includes('--publish never')) {
+  console.error('Windows installer builds must use --publish never; release publishing is handled separately.');
+  process.exit(1);
+}
+
 const endpoint = process.env.VITE_ELIGIBILITY_API?.trim();
 
 if (!endpoint) {

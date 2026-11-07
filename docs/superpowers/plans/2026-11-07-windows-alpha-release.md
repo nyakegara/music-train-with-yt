@@ -13,8 +13,8 @@
 
 ## Steps
 
-1. [x] Add a tag-triggered Windows workflow that validates the tag before dependency installation, does not persist the checkout token, runs tests, builds the installer, and publishes it as a GitHub prerelease.
-2. [ ] Review the workflow, merge its issue-linked PR after CI passes, tag `v0.1.0`, and verify the release asset and notes.
+1. [x] Add a tag-triggered Windows workflow that validates the tag before dependency installation, does not persist the checkout token, runs tests, builds the installer, and publishes it as a GitHub prerelease. A first tag run showed electron-builder v26 also tries to publish implicitly; `dist:win` now explicitly sets `--publish never` so the release action remains the only publisher.
+2. [ ] Merge the release-build fix after CI passes, retarget the existing unpublished `v0.1.0` tag to the merged commit to rerun the workflow, and verify the release asset and notes. The first run failed before creating a release.
 3. [ ] Close issue #3 after the published installer is confirmed.
 
 ## Verification evidence
