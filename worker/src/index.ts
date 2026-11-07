@@ -38,7 +38,7 @@ export default {
 
     try {
       const apiUrl = new URL('https://www.googleapis.com/youtube/v3/videos');
-      apiUrl.search = new URLSearchParams({ part: 'status', id: videoId }).toString();
+      apiUrl.search = new URLSearchParams({ part: 'id,status', id: videoId }).toString();
       const response = await fetch(apiUrl, { headers: { accept: 'application/json', 'x-goog-api-key': env.YOUTUBE_API_KEY }, signal: AbortSignal.timeout(6000) });
       if (!response.ok) return upstreamFailure(response);
       const data = await response.json() as { items?: Array<{ status?: { embeddable?: boolean; privacyStatus?: string; madeForKids?: boolean } }> };
