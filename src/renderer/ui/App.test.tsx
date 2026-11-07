@@ -196,8 +196,12 @@ describe('YouTube player lifecycle', () => {
     const reloadedPlayer = MockYouTubePlayer.instances[1];
     act(() => reloadedPlayer.options.events.onReady({ target: reloadedPlayer }));
     expect(reloadedPlayer.setPlaybackRate).toHaveBeenCalledWith(0.75);
+    const metronomeSwitch = screen.getByRole('switch') as HTMLButtonElement;
+    fireEvent.click(metronomeSwitch);
+    expect(metronomeSwitch.getAttribute('aria-checked')).toBe('true');
     act(() => firstPlayer.options.events.onError({ target: firstPlayer }));
     expect(screen.queryByRole('alert')).toBeNull();
+    expect(metronomeSwitch.getAttribute('aria-checked')).toBe('true');
   });
 
   it('resets the active YouTube playback rate to one', async () => {
@@ -524,6 +528,9 @@ describe('YouTube player lifecycle', () => {
 
     act(() => player.options.events.onError({ target: player }));
     expect((screen.getByRole('button', { name: 'Играть' }) as HTMLButtonElement).disabled).toBe(true);
+    const metronomeSwitch = screen.getByRole('switch') as HTMLButtonElement;
+    expect(metronomeSwitch.disabled).toBe(true);
+    expect(metronomeSwitch.getAttribute('aria-checked')).toBe('false');
     expect(scheduled.stop).toHaveBeenCalled();
     player.currentTime = 1;
     await act(async () => { await vi.advanceTimersByTimeAsync(100); });
