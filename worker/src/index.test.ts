@@ -26,6 +26,16 @@ describe('eligibility endpoint', () => {
     expect(new URL(String(requestUrl)).searchParams.get('id')).toBe('dQw4w9WgXcQ');
     expect((init.headers as Record<string, string>)['x-goog-api-key']).toBe('key');
   });
+  it('allows an embeddable unlisted video', async () => {
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(new Response(JSON.stringify({ items: [{ status: { privacyStatus: 'unlisted', embeddable: true, madeForKids: false } }] }))));
+    const response = await worker.fetch(new Request('https://worker.test/v1/videos/dQw4w9WgXcQ/eligibility'), env);
+    expect(await response.json()).toEqual({ eligible: true });
+  });
+  it('denies a private video', async () => {
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(new Response(JSON.stringify({ items: [{ status: { privacyStatus: 'private', embeddable: true, madeForKids: false } }] }))));
+    const response = await worker.fetch(new Request('https://worker.test/v1/videos/dQw4w9WgXcQ/eligibility'), env);
+    expect(await response.json()).toEqual({ eligible: false, reason: 'not_public' });
+  });
   it('denies videos with embedding disabled', async () => {
     vi.stubGlobal('fetch', vi.fn().mockResolvedValue(new Response(JSON.stringify({ items: [{ status: { privacyStatus: 'public', embeddable: false } }] }))));
     const response = await worker.fetch(new Request('https://worker.test/v1/videos/dQw4w9WgXcQ/eligibility'), env);
