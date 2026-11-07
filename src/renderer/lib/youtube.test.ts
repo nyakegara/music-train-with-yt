@@ -1,5 +1,5 @@
 import {afterEach,beforeEach,describe,expect,it,vi} from 'vitest';
-import {parseYouTubeId,shouldLoop,nextBeatTime,nextBeatSchedule,beatIndexAt,loopStartAt,loopEndAt,eligibilityServiceMissing,eligibilityErrorMessage,loadSettings,saveSettings,loadLastVideoId,saveLastVideoId,clearLastVideoId,DEFAULT_SETTINGS,sanitizeSettings,youtubePlayerOrigin,isDownbeat,clampPosition,videoTimeAtPointer} from './youtube';
+import {parseYouTubeId,shouldLoop,nextBeatTime,nextBeatSchedule,beatIndexAt,loopStartAt,loopEndAt,eligibilityServiceMissing,eligibilityErrorMessage,loadSettings,saveSettings,loadLastVideoId,saveLastVideoId,clearLastVideoId,DEFAULT_SETTINGS,sanitizeSettings,youtubePlayerOrigin,isDownbeat,clampPosition,videoTimeAtPointer,loadPracticeSegments,savePracticeSegments} from './youtube';
 describe('YouTube URL parser',()=>{it.each([
  ['https://www.youtube.com/watch?v=dQw4w9WgXcQ&t=18s','dQw4w9WgXcQ'],
  ['https://youtu.be/dQw4w9WgXcQ?si=abc','dQw4w9WgXcQ'],
@@ -14,6 +14,44 @@ describe('stored practice settings',()=>{
  it('saves settings independently per video and restores them',()=>{const settings={...DEFAULT_SETTINGS,bpm:132,speed:0.75};expect(saveSettings('dQw4w9WgXcQ',settings)).toBe(true);expect(loadSettings('dQw4w9WgXcQ')).toEqual(settings);expect(loadSettings('M7lc1UVf-VE')).toEqual(DEFAULT_SETTINGS);});
  it('restores the metronome off so it always needs an explicit start',()=>{const settings={...DEFAULT_SETTINGS,metronomeEnabled:true};saveSettings('dQw4w9WgXcQ',settings);expect(loadSettings('dQw4w9WgXcQ').metronomeEnabled).toBe(false);});
  it('falls back to defaults for broken JSON and sanitizes old or invalid values',()=>{localStorage.setItem('practice:dQw4w9WgXcQ','{');expect(loadSettings('dQw4w9WgXcQ')).toEqual(DEFAULT_SETTINGS);expect(sanitizeSettings({bpm:900,firstBeat:-3,speed:0,loopA:8,loopB:2,volume:4})).toEqual({...DEFAULT_SETTINGS,bpm:240,volume:1});});
+});
+describe('saved practice segments',()=>{
+ beforeEach(()=>localStorage.clear());
+ afterEach(()=>vi.restoreAllMocks());
+ const verse={id:'segment-1',label:'Куплет',loopA:12,loopB:28};
+ it('stores cleaned segment labels independently for each video',()=>{
+  expect(savePracticeSegments('dQw4w9WgXcQ',[{...verse,label:'  Куплет  '}])).toBe(true);
+  expect(loadPracticeSegments('dQw4w9WgXcQ')).toEqual([verse]);
+  expect(loadPracticeSegments('M7lc1UVf-VE')).toEqual([]);
+ });
+ it('rejects empty, overlong, duplicate, or invalid ranges without replacing saved rows',()=>{
+  expect(savePracticeSegments('dQw4w9WgXcQ',[verse])).toBe(true);
+  expect(savePracticeSegments('dQw4w9WgXcQ',[verse,{...verse,label:'Другой'}])).toBe(false);
+  expect(savePracticeSegments('dQw4w9WgXcQ',[verse,{...verse,id:'segment-2',label:'куплет'}])).toBe(false);
+  expect(savePracticeSegments('dQw4w9WgXcQ',[{...verse,label:'  '}])).toBe(false);
+  expect(savePracticeSegments('dQw4w9WgXcQ',[{...verse,label:'а'.repeat(41)}])).toBe(false);
+  expect(savePracticeSegments('dQw4w9WgXcQ',[{...verse,loopA:28,loopB:28}])).toBe(false);
+  expect(loadPracticeSegments('dQw4w9WgXcQ')).toEqual([verse]);
+ });
+ it('discards malformed stored rows and duplicate IDs or names',()=>{
+  localStorage.setItem('practice-segments:dQw4w9WgXcQ',JSON.stringify([
+   verse,{...verse,id:'segment-2',label:'куплет'},{...verse,id:'segment-1',label:'Припев'},
+   {...verse,id:'segment-3',loopA:-1},{...verse,id:'segment-4',loopB:Number.POSITIVE_INFINITY},null,
+  ]));
+  expect(loadPracticeSegments('dQw4w9WgXcQ')).toEqual([verse]);
+ });
+ it('returns an empty list for malformed JSON and invalid video IDs',()=>{
+  localStorage.setItem('practice-segments:dQw4w9WgXcQ','{');
+  expect(loadPracticeSegments('dQw4w9WgXcQ')).toEqual([]);
+  expect(loadPracticeSegments('not-a-video-id')).toEqual([]);
+  expect(savePracticeSegments('not-a-video-id',[verse])).toBe(false);
+ });
+ it('contains local-storage read and write failures',()=>{
+  vi.spyOn(Storage.prototype,'getItem').mockImplementation(()=>{throw new Error('unavailable');});
+  expect(loadPracticeSegments('dQw4w9WgXcQ')).toEqual([]);
+  vi.spyOn(Storage.prototype,'setItem').mockImplementation(()=>{throw new Error('unavailable');});
+  expect(savePracticeSegments('dQw4w9WgXcQ',[verse])).toBe(false);
+ });
 });
 describe('remembered video storage',()=>{
  beforeEach(()=>localStorage.clear());
