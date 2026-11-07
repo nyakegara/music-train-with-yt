@@ -22,6 +22,12 @@ npm run dist:win
 
 The NSIS installer is written to `release/`. `npm run dist:win` rejects a missing or insecure Worker URL, so the released app won't silently ship without video eligibility checks. The YouTube embedded player requires internet access. Development mode permits direct embed testing without the Worker. See [`worker/README.md`](worker/README.md) for deployment.
 
+## Publish a Windows alpha
+
+Push a `vX.Y.Z` tag that matches the version in `package.json`. The Windows release workflow runs the tests, builds the x64 NSIS installer with the production eligibility Worker, and publishes the installer as a GitHub prerelease for `0.x` and hyphenated versions. For example, after merging the release changes, tag the `0.1.0` commit with `v0.1.0`. The installer is unsigned; Windows may show an unknown publisher warning.
+
+Published installers are listed under [GitHub Releases](https://github.com/nyakegara/music-train-with-yt/releases).
+
 ## Current scope
 
 The app stores BPM, first beat, metronome volume, playback speed, meter, and loop markers locally per video. The metronome always opens switched off so it starts only after an explicit user action. Automatic beat detection and automatic tab transcription are tracked for future versions in the GitHub issues.

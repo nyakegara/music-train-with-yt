@@ -19,7 +19,7 @@
 4. [x] Run each new test against the old implementation and confirm it fails for the target regression. All three new tests failed before implementation.
 5. [x] Implement the smallest state synchronization and error cleanup changes.
 6. [x] Run the focused component tests, all tests, production build, and `git diff --check`. The focused tests pass; the full suite passes 91/91; production build and diff check pass.
-7. [ ] Request a read-only code review, address findings, commit and push the issue-linked PR, and merge after CI and review pass.
+7. [x] Request a read-only code review, address findings, commit and push the issue-linked PR, and merge after CI and review pass. PR #20 merged after green CI and code review.
 
 ## Review focus
 
