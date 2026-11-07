@@ -67,3 +67,20 @@
 .segment-row-actions button{display:grid;place-items:center;width:29px;height:29px;border:1px solid #34342f;border-radius:5px;background:#1c1c19;color:#929287;cursor:pointer}
 .segment-row-actions button:hover{border-color:#55554a;color:#e8e7e1;background:#252522}
 .segment-editor:focus-within,.segment-row-actions button:focus-visible,.segment-save-button:focus-visible,.saved-segment-select:focus-visible,.segment-editor-actions button:focus-visible,.saved-segments>summary:focus-visible{outline:2px solid var(--mint);outline-offset:2px}
+.speed-ladder{margin-top:12px;border-top:1px solid #2d2d29}
+.speed-ladder>summary{display:flex;align-items:center;gap:9px;padding:12px 2px 4px;color:#c6c5bb;font-size:10px;font-weight:600;cursor:pointer;list-style:none}
+.speed-ladder>summary::-webkit-details-marker{display:none}
+.speed-ladder>summary::after{content:'⌄';margin-left:auto;color:#8e8e83;transition:transform .15s}
+.speed-ladder[open]>summary::after{transform:rotate(180deg)}
+.speed-ladder>summary small{color:#898a80;font:8px var(--mono);font-weight:400}
+.speed-ladder[open]>summary small{color:var(--mint)}
+.speed-ladder-body{display:grid;grid-template-columns:minmax(90px,.8fr) minmax(130px,1fr);gap:8px;align-items:end;padding:10px;border:1px solid #2d2d29;border-radius:6px;background:#1b1b18}
+.speed-ladder-target{display:grid;gap:5px}
+.speed-ladder-target label{color:#99998f;font-size:9px}
+.speed-ladder-target select{height:31px;padding:0 8px;border:1px solid #383832;border-radius:4px;background:#22221f;color:#deddd4;font:10px var(--mono)}
+.speed-ladder-toggle{height:31px;border:1px solid #4a5739;border-radius:4px;background:#293021;color:var(--mint);font-size:10px;font-weight:600;cursor:pointer;transition:background .15s,border-color .15s}
+.speed-ladder-toggle:hover:not(:disabled){background:#333c27;border-color:#687c4c}
+.speed-ladder-toggle:disabled,.speed-ladder-target select:disabled{opacity:.45;cursor:not-allowed}
+.speed-ladder-status,.speed-ladder-hint{grid-column:1/-1;margin:0;color:#aaa99f;font-size:9px;line-height:1.45}
+.speed-ladder-hint{color:#77776f}
+.speed-ladder>summary:focus-visible,.speed-ladder-target select:focus-visible,.speed-ladder-toggle:focus-visible{outline:2px solid var(--mint);outline-offset:2px}

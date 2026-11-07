@@ -32,6 +32,10 @@ Published installers are listed under [GitHub Releases](https://github.com/nyake
 
 The app stores BPM, first beat, metronome volume, playback speed, meter, and loop markers locally per video. Named practice segments can save multiple A/B ranges per video; their labels and timestamps stay on this computer. The metronome always opens switched off so it starts only after an explicit user action. Automatic beat detection and automatic tab transcription are tracked for future versions in the GitHub issues.
 
+### Speed trainer
+
+Open **Тренажёр скорости** in the loop card, choose a supported target above the current speed, then start the trainer. Each completed A/B repeat advances by one playback rate reported by YouTube and stops at the target. The trainer is temporary: changing the loop, video, playback speed, or seeking with the app controls stops it.
+
 ### Meter and keyboard controls
 
 Choose **3/4** or **4/4** in the metronome card. The first beat of each bar gets the stronger click. The meter is manual; the app does not detect a song's meter automatically. Existing saved videos default to 4/4.
