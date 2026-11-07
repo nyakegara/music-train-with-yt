@@ -24,7 +24,7 @@ The NSIS installer is written to `release/`. `npm run dist:win` rejects a missin
 
 ## Publish a Windows alpha
 
-Push a `vX.Y.Z` tag that matches the version in `package.json`. The Windows release workflow runs the tests, builds the x64 NSIS installer with the production eligibility Worker, and publishes the installer as a GitHub prerelease for `0.x` and hyphenated versions. For example, after merging the release changes, tag the `0.1.1` release commit with `v0.1.1`. The installer is unsigned; Windows may show an unknown publisher warning.
+Push a `vX.Y.Z` tag that matches the version in `package.json`. The Windows release workflow runs the tests, builds the x64 NSIS installer with the production eligibility Worker, and publishes the installer as a GitHub prerelease for `0.x` and hyphenated versions. For example, after merging the release changes, tag the `0.1.2` release commit with `v0.1.2`. The installer is unsigned; Windows may show an unknown publisher warning.
 
 Published installers are listed under [GitHub Releases](https://github.com/nyakegara/music-train-with-yt/releases).
 
