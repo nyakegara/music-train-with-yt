@@ -1,6 +1,7 @@
 import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import App from './App';
+import { YOUTUBE_API_TIMEOUT_MS } from '../lib/youtubePlayerApi';
 
 class MockYouTubePlayer {
   static instances: MockYouTubePlayer[] = [];
@@ -60,6 +61,8 @@ describe('YouTube player lifecycle', () => {
   beforeEach(() => {
     localStorage.clear();
     MockYouTubePlayer.instances = [];
+    window.onYouTubeIframeAPIReady = undefined;
+    document.querySelectorAll('script[src="https://www.youtube.com/iframe_api"]').forEach((script) => script.remove());
     vi.stubGlobal('AudioContext', MockAudioContext);
     window.YT = { Player: MockYouTubePlayer };
   });
@@ -525,5 +528,82 @@ describe('YouTube player lifecycle', () => {
     player.currentTime = 1;
     await act(async () => { await vi.advanceTimersByTimeAsync(100); });
     expect(MockAudioContext.instance.oscillators).toHaveLength(oscillatorCount);
+  });
+
+  it('shows a loading status while the YouTube player API is pending', async () => {
+    (window as any).YT = undefined;
+    window.onYouTubeIframeAPIReady = undefined;
+    render(<App />);
+    const input = screen.getByLabelText('ССЫЛКА НА ВИДЕО') as HTMLInputElement;
+    fireEvent.change(input, { target: { value: 'https://youtu.be/dQw4w9WgXcQ' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Загрузить видео' }));
+
+    await waitFor(() => expect(screen.getByText('Подключаю плеер YouTube…')).toBeTruthy());
+    const script = document.querySelector('script[src="https://www.youtube.com/iframe_api"]');
+    expect(script).toBeTruthy();
+    await act(async () => {
+      script!.dispatchEvent(new Event('error'));
+      await Promise.resolve();
+    });
+  });
+
+  it('shows an API load error and retries without losing the submitted link', async () => {
+    (window as any).YT = undefined;
+    window.onYouTubeIframeAPIReady = undefined;
+    render(<App />);
+    const input = screen.getByLabelText('ССЫЛКА НА ВИДЕО') as HTMLInputElement;
+    const url = 'https://youtu.be/dQw4w9WgXcQ';
+    fireEvent.change(input, { target: { value: url } });
+    fireEvent.click(screen.getByRole('button', { name: 'Загрузить видео' }));
+    const failedScript = await waitFor(() => {
+      const script = document.querySelector<HTMLScriptElement>('script[src="https://www.youtube.com/iframe_api"]');
+      expect(script).toBeTruthy();
+      return script!;
+    });
+
+    await act(async () => {
+      failedScript.dispatchEvent(new Event('error'));
+      await Promise.resolve();
+    });
+
+    expect(screen.getByRole('alert').textContent).toContain('Не удалось подключить плеер YouTube');
+    expect(input.value).toBe(url);
+    fireEvent.click(screen.getByRole('button', { name: 'Повторить' }));
+    const retryScript = await waitFor(() => {
+      const script = document.querySelector<HTMLScriptElement>('script[src="https://www.youtube.com/iframe_api"]');
+      expect(script).toBeTruthy();
+      return script!;
+    });
+    expect(retryScript).not.toBe(failedScript);
+
+    await act(async () => {
+      (window as any).YT = { Player: MockYouTubePlayer };
+      window.onYouTubeIframeAPIReady?.();
+    });
+    expect(MockYouTubePlayer.instances).toHaveLength(1);
+    expect(input.value).toBe(url);
+  });
+
+  it('offers recovery after the YouTube API times out', async () => {
+    vi.useFakeTimers();
+    (window as any).YT = undefined;
+    window.onYouTubeIframeAPIReady = undefined;
+    render(<App />);
+    const input = screen.getByLabelText('ССЫЛКА НА ВИДЕО') as HTMLInputElement;
+    const url = 'https://youtu.be/dQw4w9WgXcQ';
+    fireEvent.change(input, { target: { value: url } });
+    fireEvent.click(screen.getByRole('button', { name: 'Загрузить видео' }));
+
+    await act(async () => { await vi.advanceTimersByTimeAsync(YOUTUBE_API_TIMEOUT_MS); });
+    expect(screen.getByRole('alert').textContent).toContain('Не удалось подключить плеер YouTube');
+    fireEvent.click(screen.getByRole('button', { name: 'Повторить' }));
+    expect(document.querySelectorAll('script[src="https://www.youtube.com/iframe_api"]')).toHaveLength(1);
+
+    await act(async () => {
+      (window as any).YT = { Player: MockYouTubePlayer };
+      window.onYouTubeIframeAPIReady?.();
+    });
+    expect(MockYouTubePlayer.instances).toHaveLength(1);
+    expect(input.value).toBe(url);
   });
 });
