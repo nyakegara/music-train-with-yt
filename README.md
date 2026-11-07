@@ -1,7 +1,26 @@
 # Music Train with YT
 
-Windows desktop practice tool for YouTube videos. Paste a video link, slow it down, loop a section, and practice with a synchronized metronome.
+Windows desktop practice tool. Paste a YouTube link, slow the video, mark a passage to repeat, and practice along with a metronome.
 
-## Development
+## Run locally
 
-The application is built with Electron, TypeScript, and Vite. See the project issues for implementation milestones.
+Requires Node.js 22 or newer.
+
+```sh
+npm install
+npm run dev
+```
+
+## Test and build
+
+```sh
+npm test
+npm run build
+npm run dist:win
+```
+
+The NSIS installer is written to `release/`. The YouTube embedded player requires internet access. Add `VITE_ELIGIBILITY_API` to the build environment to enable the Worker eligibility check. See [`worker/README.md`](worker/README.md) for deployment.
+
+## Current scope
+
+The first version stores BPM, first beat, playback speed, loop markers, and metronome settings locally per video. Automatic beat detection and automatic tab transcription are tracked for future versions in the GitHub issues.
