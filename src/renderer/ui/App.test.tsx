@@ -1091,3 +1091,135 @@ describe('YouTube player lifecycle', () => {
     expect(inactiveLine.querySelectorAll('.is-active')).toHaveLength(0);
   });
 });
+
+describe('saved practice segments', () => {
+  beforeEach(() => {
+    localStorage.clear();
+    MockYouTubePlayer.instances = [];
+    window.onYouTubeIframeAPIReady = undefined;
+    document.querySelectorAll('script[src="https://www.youtube.com/iframe_api"]').forEach((script) => script.remove());
+    vi.stubGlobal('AudioContext', MockAudioContext);
+    window.YT = { Player: MockYouTubePlayer };
+  });
+  afterEach(() => { cleanup(); vi.useRealTimers(); vi.unstubAllGlobals(); vi.unstubAllEnvs(); vi.restoreAllMocks(); });
+
+  async function loadReadyVideo(videoId = 'dQw4w9WgXcQ') {
+    vi.stubEnv('VITE_ELIGIBILITY_API', 'https://eligibility.example');
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue({ ok: true, json: vi.fn().mockResolvedValue({ eligible: true }) }));
+    render(<App />);
+    await act(async () => { window.onYouTubeIframeAPIReady?.(); });
+    fireEvent.change(screen.getByLabelText('ССЫЛКА НА ВИДЕО'), { target: { value: `https://youtu.be/${videoId}` } });
+    fireEvent.click(screen.getByRole('button', { name: 'Загрузить видео' }));
+    await waitFor(() => expect(MockYouTubePlayer.instances).toHaveLength(1));
+    const player = MockYouTubePlayer.instances[0];
+    act(() => player.options.events.onReady({ target: player }));
+    return player;
+  }
+
+  async function saveRange(from: number, to: number, label: string) {
+    const position = screen.getByLabelText('Позиция видео');
+    fireEvent.change(position, { target: { value: from } });
+    fireEvent.click(screen.getByRole('button', { name: /НАЧАЛО/ }));
+    fireEvent.change(position, { target: { value: to } });
+    fireEvent.click(screen.getByRole('button', { name: /КОНЕЦ/ }));
+    fireEvent.click(screen.getByRole('button', { name: 'Сохранить фрагмент' }));
+    fireEvent.change(screen.getByRole('textbox', { name: 'Название фрагмента' }), { target: { value: label } });
+    fireEvent.click(screen.getByRole('button', { name: 'Сохранить' }));
+    await waitFor(() => expect(screen.getByRole('button', { name: new RegExp(`Выбрать фрагмент: ${label}`) })).toBeTruthy());
+  }
+
+  it('saves multiple ranges, restores a selected range and seeks without autoplay', async () => {
+    const player = await loadReadyVideo();
+    await saveRange(12, 28, 'Куплет');
+    await saveRange(54, 82, 'Соло');
+
+    expect(JSON.parse(localStorage.getItem('practice-segments:dQw4w9WgXcQ')!)).toHaveLength(2);
+    fireEvent.click(screen.getByRole('button', { name: /Выбрать фрагмент: Куплет/ }));
+    expect(player.seekTo).toHaveBeenCalledWith(12, true);
+    expect(JSON.parse(localStorage.getItem('practice:dQw4w9WgXcQ')!).loopA).toBe(12);
+    expect(JSON.parse(localStorage.getItem('practice:dQw4w9WgXcQ')!).loopB).toBe(28);
+    expect(player.playVideo).not.toHaveBeenCalled();
+  });
+
+  it('keeps named ranges when changing videos and restores them when returning', async () => {
+    await loadReadyVideo();
+    await saveRange(12, 28, 'Куплет');
+    fireEvent.change(screen.getByLabelText('ССЫЛКА НА ВИДЕО'), { target: { value: 'https://youtu.be/oHg5SJYRHA0' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Заменить видео' }));
+    await waitFor(() => expect(MockYouTubePlayer.instances).toHaveLength(2));
+    expect(screen.queryByRole('button', { name: /Выбрать фрагмент: Куплет/ })).toBeNull();
+    fireEvent.change(screen.getByLabelText('ССЫЛКА НА ВИДЕО'), { target: { value: 'https://youtu.be/dQw4w9WgXcQ' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Заменить видео' }));
+    await waitFor(() => expect(screen.getByRole('button', { name: /Выбрать фрагмент: Куплет/ })).toBeTruthy());
+  });
+
+  it('renames and deletes only the chosen saved range', async () => {
+    await loadReadyVideo();
+    await saveRange(12, 28, 'Куплет');
+    await saveRange(54, 82, 'Соло');
+    fireEvent.click(screen.getByRole('button', { name: 'Переименовать фрагмент Куплет' }));
+    fireEvent.change(screen.getByRole('textbox', { name: 'Новое название: Куплет' }), { target: { value: 'Первый куплет' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Сохранить имя' }));
+    expect(screen.getByRole('button', { name: /Выбрать фрагмент: Первый куплет/ })).toBeTruthy();
+    fireEvent.click(screen.getByRole('button', { name: 'Удалить фрагмент Соло' }));
+    expect(screen.queryByRole('button', { name: /Выбрать фрагмент: Соло/ })).toBeNull();
+    expect(JSON.parse(localStorage.getItem('practice-segments:dQw4w9WgXcQ')!)).toMatchObject([{ label: 'Первый куплет' }]);
+  });
+
+  it('disables saving until a complete A/B range exists', async () => {
+    await loadReadyVideo();
+    expect(screen.getByRole('button', { name: 'Сохранить фрагмент' }).hasAttribute('disabled')).toBe(true);
+    expect(screen.getByText('Отметь начало A и конец B, чтобы сохранить фрагмент.')).toBeTruthy();
+    const position = screen.getByLabelText('Позиция видео');
+    fireEvent.change(position, { target: { value: 12 } });
+    fireEvent.click(screen.getByRole('button', { name: /НАЧАЛО/ }));
+    expect(screen.getByRole('button', { name: 'Сохранить фрагмент' }).hasAttribute('disabled')).toBe(true);
+    fireEvent.change(position, { target: { value: 28 } });
+    fireEvent.click(screen.getByRole('button', { name: /КОНЕЦ/ }));
+    expect(screen.getByRole('button', { name: 'Сохранить фрагмент' }).hasAttribute('disabled')).toBe(false);
+    expect(screen.queryByText('Отметь начало A и конец B, чтобы сохранить фрагмент.')).toBeNull();
+  });
+
+  it('explains and rejects a duplicate name without replacing existing segments', async () => {
+    await loadReadyVideo();
+    await saveRange(12, 28, 'Куплет');
+    const position = screen.getByLabelText('Позиция видео');
+    fireEvent.change(position, { target: { value: 54 } });
+    fireEvent.click(screen.getByRole('button', { name: /НАЧАЛО/ }));
+    fireEvent.change(position, { target: { value: 82 } });
+    fireEvent.click(screen.getByRole('button', { name: /КОНЕЦ/ }));
+    fireEvent.click(screen.getByRole('button', { name: 'Сохранить фрагмент' }));
+    fireEvent.change(screen.getByRole('textbox', { name: 'Название фрагмента' }), { target: { value: 'куплет' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Сохранить' }));
+    expect((await screen.findByRole('alert')).textContent).toContain('Название уже используется');
+    expect(JSON.parse(localStorage.getItem('practice-segments:dQw4w9WgXcQ')!)).toHaveLength(1);
+  });
+
+  it('does not let a saved range extend past the current video duration', async () => {
+    localStorage.setItem('practice-segments:dQw4w9WgXcQ', JSON.stringify([{ id: 'stale-range', label: 'Длинный фрагмент', loopA: 10, loopB: 240 }]));
+    const player = await loadReadyVideo();
+    fireEvent.click(screen.getByText('Сохранённые фрагменты'));
+    const staleRange = await screen.findByRole('button', { name: /Выбрать фрагмент: Длинный фрагмент/ });
+    expect(staleRange.hasAttribute('disabled')).toBe(true);
+    expect(player.seekTo).not.toHaveBeenCalled();
+  });
+
+  it('keeps the saved list unchanged and announces local-storage write errors', async () => {
+    await loadReadyVideo();
+    const originalSetItem = Storage.prototype.setItem;
+    vi.spyOn(Storage.prototype, 'setItem').mockImplementation(function (this: Storage, key, value) {
+      if (key.startsWith('practice-segments:')) throw new Error('unavailable');
+      originalSetItem.call(this, key, value);
+    });
+    const position = screen.getByLabelText('Позиция видео');
+    fireEvent.change(position, { target: { value: 12 } });
+    fireEvent.click(screen.getByRole('button', { name: /НАЧАЛО/ }));
+    fireEvent.change(position, { target: { value: 28 } });
+    fireEvent.click(screen.getByRole('button', { name: /КОНЕЦ/ }));
+    fireEvent.click(screen.getByRole('button', { name: 'Сохранить фрагмент' }));
+    fireEvent.change(screen.getByRole('textbox', { name: 'Название фрагмента' }), { target: { value: 'Куплет' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Сохранить' }));
+    expect((await screen.findByRole('alert')).textContent).toContain('Не удалось сохранить фрагмент');
+    expect(screen.queryByRole('button', { name: /Выбрать фрагмент: Куплет/ })).toBeNull();
+  });
+});

@@ -30,7 +30,7 @@ Published installers are listed under [GitHub Releases](https://github.com/nyake
 
 ## Current scope
 
-The app stores BPM, first beat, metronome volume, playback speed, meter, and loop markers locally per video. The metronome always opens switched off so it starts only after an explicit user action. Automatic beat detection and automatic tab transcription are tracked for future versions in the GitHub issues.
+The app stores BPM, first beat, metronome volume, playback speed, meter, and loop markers locally per video. Named practice segments can save multiple A/B ranges per video; their labels and timestamps stay on this computer. The metronome always opens switched off so it starts only after an explicit user action. Automatic beat detection and automatic tab transcription are tracked for future versions in the GitHub issues.
 
 ### Meter and keyboard controls
 

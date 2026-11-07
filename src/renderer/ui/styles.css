@@ -34,3 +34,36 @@
 .loop-scale{margin-top:31px}
 .track-card-row{display:flex;align-items:stretch;gap:4px}.track-card-row .track-card{flex:1;min-width:0}.track-card-row .track-card>div:nth-child(2){min-width:0}.track-card-row .track-card small{overflow:hidden;text-overflow:ellipsis}.track-clear{border:0;background:none;color:#85857c;border-radius:5px;padding:0 5px;font-size:16px;cursor:pointer}.track-clear:hover,.track-clear:focus-visible{color:#e8e7e1;background:#292926}
 .track-clear-error{padding:6px 9px 0;color:#f1a19b;font-size:10px;line-height:1.4}
+
+.segment-save-button{width:100%;display:flex;align-items:center;justify-content:center;gap:8px;margin-top:13px;padding:10px 12px;border:1px solid #3a4530;border-radius:6px;background:#1c2017;color:var(--mint);font-size:11px;font-weight:600;cursor:pointer;transition:background .15s,border-color .15s}
+.segment-save-button:hover:not(:disabled){background:#252b1d;border-color:#64754b}
+.segment-save-button:disabled{opacity:.42;cursor:not-allowed}
+.segment-save-hint{margin:6px 0 0;color:#88887e;font-size:9px;line-height:1.45}
+.segment-editor{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:7px;margin-top:9px;padding:10px;border:1px solid #373731;border-radius:6px;background:#1c1c19}
+.segment-editor>label{grid-column:1/-1;color:#b8b8ae;font-size:10px}
+.segment-editor>input{grid-column:1/-1;width:100%;min-width:0;padding:8px 9px;border:1px solid #41413a;border-radius:4px;background:#141412;color:#e8e7e1;font-size:11px;outline:none}
+.segment-editor>input:focus{border-color:#7a9650;box-shadow:0 0 0 2px #c5ed7824}
+.segment-editor-actions{grid-column:1/-1;display:flex;justify-content:flex-end;gap:7px;margin-top:2px}
+.segment-editor-actions button{min-height:29px;padding:0 10px;border:1px solid #3a3a34;border-radius:4px;background:#242421;color:#c7c6bc;font-size:10px;cursor:pointer}
+.segment-editor-actions .segment-confirm{border-color:#607344;background:#333d27;color:var(--mint);font-weight:600}
+.segment-editor-actions button:disabled{opacity:.4;cursor:not-allowed}
+.segment-error{margin:8px 0 0;color:#f1a19b;font-size:10px;line-height:1.45}
+.saved-segments{margin-top:12px;border-top:1px solid #2d2d29}
+.saved-segments>summary{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:12px 2px 4px;color:#c6c5bb;font-size:10px;font-weight:600;cursor:pointer;list-style:none}
+.saved-segments>summary::-webkit-details-marker{display:none}
+.saved-segments>summary::after{content:'⌄';margin-left:6px;color:#8e8e83;transition:transform .15s}
+.saved-segments[open]>summary::after{transform:rotate(180deg)}
+.segment-count{margin-left:auto;color:#8f9084;font:9px var(--mono)}
+.segment-list{display:grid;gap:6px;padding-top:8px}
+.segment-empty{margin:0;padding:3px 0 1px;color:#85857d;font-size:10px;line-height:1.55}
+.saved-segment{display:flex;align-items:center;gap:5px;min-width:0}
+.saved-segment-select{display:flex;align-items:center;justify-content:space-between;gap:8px;flex:1;min-width:0;min-height:36px;padding:0 9px;border:1px solid #33332e;border-radius:5px;background:#1c1c19;color:#dad9d1;text-align:left;cursor:pointer;transition:border-color .15s,background .15s}
+.saved-segment-select strong{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:10px;font-weight:600}
+.saved-segment-select span{flex:none;color:#929287;font:9px var(--mono)}
+.saved-segment-select:hover:not(:disabled),.saved-segment-select[aria-pressed="true"]{border-color:#596847;background:#22271c}
+.saved-segment-select[aria-pressed="true"] strong{color:var(--mint)}
+.saved-segment-select:disabled{opacity:.42;cursor:not-allowed}
+.segment-row-actions{display:flex;gap:3px;flex:none}
+.segment-row-actions button{display:grid;place-items:center;width:29px;height:29px;border:1px solid #34342f;border-radius:5px;background:#1c1c19;color:#929287;cursor:pointer}
+.segment-row-actions button:hover{border-color:#55554a;color:#e8e7e1;background:#252522}
+.segment-editor:focus-within,.segment-row-actions button:focus-visible,.segment-save-button:focus-visible,.saved-segment-select:focus-visible,.segment-editor-actions button:focus-visible,.saved-segments>summary:focus-visible{outline:2px solid var(--mint);outline-offset:2px}
