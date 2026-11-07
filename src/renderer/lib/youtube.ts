@@ -12,6 +12,10 @@ export function parseYouTubeId(input: string): string | null {
   } catch { return null; }
 }
 
+export function eligibilityServiceMissing(isDevelopment: boolean, endpoint: string | undefined): boolean {
+  return !isDevelopment && !endpoint;
+}
+
 export type PracticeSettings = { bpm:number; firstBeat:number; speed:number; loopA:number|null; loopB:number|null; metronomeEnabled:boolean; volume:number };
 export const DEFAULT_SETTINGS: PracticeSettings = { bpm:100, firstBeat:0, speed:1, loopA:null, loopB:null, metronomeEnabled:false, volume:0.35 };
 const storageKey = (id:string) => `practice:${id}`;

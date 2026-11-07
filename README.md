@@ -19,8 +19,9 @@ npm run build
 npm run dist:win
 ```
 
-The NSIS installer is written to `release/`. The YouTube embedded player requires internet access. Add `VITE_ELIGIBILITY_API` to the build environment to enable the Worker eligibility check. See [`worker/README.md`](worker/README.md) for deployment.
+The NSIS installer is written to `release/`. The YouTube embedded player requires internet access. Release builds require `VITE_ELIGIBILITY_API` so videos are checked before embedding. Development mode permits direct embed testing without the Worker. See [`worker/README.md`](worker/README.md) for deployment.
 
 ## Current scope
 
 The first version stores BPM, first beat, playback speed, loop markers, and metronome settings locally per video. Automatic beat detection and automatic tab transcription are tracked for future versions in the GitHub issues.
+
