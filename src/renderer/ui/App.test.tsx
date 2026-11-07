@@ -162,6 +162,25 @@ describe('YouTube player lifecycle', () => {
     expect(player.seekTo).not.toHaveBeenCalled();
   });
 
+  it('ignores app shortcuts inside plaintext-only editable content', async () => {
+    render(<App />);
+    await act(async () => { window.onYouTubeIframeAPIReady?.(); });
+    fireEvent.change(screen.getByLabelText('ССЫЛКА НА ВИДЕО'), { target: { value: 'https://youtu.be/dQw4w9WgXcQ' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Загрузить видео' }));
+    const player = MockYouTubePlayer.instances[0];
+    act(() => player.options.events.onReady({ target: player }));
+
+    const editor = document.createElement('div');
+    editor.setAttribute('contenteditable', 'PLAINTEXT-ONLY');
+    document.body.appendChild(editor);
+    try {
+      fireEvent.keyDown(editor, { key: 'm' });
+      expect(screen.getByRole('switch').getAttribute('aria-checked')).toBe('false');
+    } finally {
+      editor.remove();
+    }
+  });
+
   it('does not treat Space on a focused button as the global play shortcut', async () => {
     render(<App />);
     await act(async () => { window.onYouTubeIframeAPIReady?.(); });
@@ -170,8 +189,72 @@ describe('YouTube player lifecycle', () => {
     const player = MockYouTubePlayer.instances[0];
     act(() => player.options.events.onReady({ target: player }));
     const meterButton = screen.getByRole('button', { name: 'Размер такта 3/4' });
-    fireEvent.keyDown(meterButton, { key: ' ' });
+    const spaceEvent = new KeyboardEvent('keydown', { key: ' ', bubbles: true, cancelable: true });
+    fireEvent(meterButton, spaceEvent);
     expect(player.playVideo).not.toHaveBeenCalled();
+    expect(spaceEvent.defaultPrevented).toBe(false);
+  });
+
+  it('keeps A, B, and M shortcuts working while a button has focus', async () => {
+    render(<App />);
+    await act(async () => { window.onYouTubeIframeAPIReady?.(); });
+    fireEvent.change(screen.getByLabelText('ССЫЛКА НА ВИДЕО'), { target: { value: 'https://youtu.be/dQw4w9WgXcQ' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Загрузить видео' }));
+    const player = MockYouTubePlayer.instances[0];
+    act(() => player.options.events.onReady({ target: player }));
+    const position = screen.getByRole('slider', { name: 'Позиция видео' });
+
+    fireEvent.change(position, { target: { value: '12' } });
+    const meterButton = screen.getByRole('button', { name: 'Размер такта 3/4' });
+    meterButton.focus();
+    fireEvent.keyDown(meterButton, { key: 'a' });
+    expect(JSON.parse(localStorage.getItem('practice:dQw4w9WgXcQ')!).loopA).toBe(12);
+
+    fireEvent.change(position, { target: { value: '20' } });
+    const firstBeatButton = screen.getByRole('button', { name: /Отметить первую долю/ });
+    firstBeatButton.focus();
+    fireEvent.keyDown(firstBeatButton, { key: 'b' });
+    expect(JSON.parse(localStorage.getItem('practice:dQw4w9WgXcQ')!).loopB).toBe(20);
+
+    const metronomeSwitch = screen.getByRole('switch');
+    metronomeSwitch.focus();
+    fireEvent.keyDown(metronomeSwitch, { key: 'm' });
+    expect(metronomeSwitch.getAttribute('aria-checked')).toBe('true');
+
+    firstBeatButton.focus();
+    fireEvent.keyDown(firstBeatButton, { key: 'ArrowRight' });
+    expect(player.seekTo).toHaveBeenLastCalledWith(25, true);
+  });
+
+  it('ignores held-key repeats for toggles and loop markers but keeps repeated seeking', async () => {
+    render(<App />);
+    await act(async () => { window.onYouTubeIframeAPIReady?.(); });
+    fireEvent.change(screen.getByLabelText('ССЫЛКА НА ВИДЕО'), { target: { value: 'https://youtu.be/dQw4w9WgXcQ' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Загрузить видео' }));
+    const player = MockYouTubePlayer.instances[0];
+    act(() => player.options.events.onReady({ target: player }));
+
+    fireEvent.keyDown(window, { key: ' ', repeat: true });
+    fireEvent.keyDown(window, { key: 'm', repeat: true });
+    const meterButton = screen.getByRole('button', { name: 'Размер такта 3/4' });
+    meterButton.focus();
+    fireEvent.keyDown(meterButton, { key: 'a', repeat: true });
+    fireEvent.keyDown(meterButton, { key: 'b', repeat: true });
+    expect(player.playVideo).not.toHaveBeenCalled();
+    expect(screen.getByRole('switch').getAttribute('aria-checked')).toBe('false');
+    expect(JSON.parse(localStorage.getItem('practice:dQw4w9WgXcQ')!).loopA).toBeNull();
+    expect(JSON.parse(localStorage.getItem('practice:dQw4w9WgXcQ')!).loopB).toBeNull();
+
+    fireEvent.keyDown(window, { key: 'ArrowRight', repeat: true });
+    fireEvent.keyDown(window, { key: 'ArrowRight', repeat: true });
+    expect(player.seekTo).toHaveBeenNthCalledWith(1, 5, true);
+    expect(player.seekTo).toHaveBeenNthCalledWith(2, 10, true);
+  });
+
+  it('shows the correct way to reopen shortcut help after clicking the video', async () => {
+    render(<App />);
+    fireEvent.click(screen.getByRole('button', { name: 'Горячие клавиши' }));
+    expect(screen.getByText('Если после клика по видео клавиши не срабатывают, нажми кнопку «?» в панели.')).toBeTruthy();
   });
 
   it('sets loop markers, toggles the metronome, and shows shortcut help from the keyboard', async () => {
