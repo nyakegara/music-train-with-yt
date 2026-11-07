@@ -1,5 +1,5 @@
 import {useCallback,useEffect,useRef,useState} from 'react';
-import {Activity,ArrowDownToLine,Check,ChevronDown,CircleHelp,ExternalLink,Headphones,Link2,Repeat2,AudioLines,Metronome,Music2,Pause,Play,Plus,RotateCcw,Settings2,SkipBack,SkipForward,Volume2} from 'lucide-react';
+import {Activity,ArrowDownToLine,Check,ChevronDown,CircleHelp,ExternalLink,Headphones,Link2,Repeat2,AudioLines,Metronome,Music2,Pause,Play,Plus,RotateCcw,SkipBack,SkipForward,Volume2} from 'lucide-react';
 import {DEFAULT_SETTINGS,loadSettings,parseYouTubeId,PracticeSettings,saveSettings,shouldLoop} from '../lib/youtube';
 
 const eligibilityApi = import.meta.env.VITE_ELIGIBILITY_API as string | undefined;
@@ -23,8 +23,8 @@ export default function App(){
  const seek=(t:number)=>{player.current?.seekTo(Math.max(0,Math.min(duration,t)),true);setCurrent(t);lastBeat.current=-1;};
  const tap=()=>{const now=Date.now(),next=[...tapTimes.filter(t=>now-t<2500),now];setTapTimes(next);if(next.length>1){const diffs=next.slice(1).map((t,i)=>t-next[i]);const avg=diffs.reduce((a,b)=>a+b,0)/diffs.length;update({bpm:Math.max(40,Math.min(240,Math.round(60000/avg)))});}};
  return <div className="app-shell">
-  <header className="topbar"><div className="brand"><div className="brand-mark"><Activity size={19}/></div><span>music<span className="brand-accent">train</span></span><span className="brand-beta">BETA</span></div><div className="topbar-center"><span className="status-dot"/>LOCAL SESSION</div><button className="icon-button" aria-label="Настройки"><Settings2 size={17}/></button><div className="avatar">M</div></header>
-  <main className="workspace"><aside className="sidebar"><div className="sidebar-label">МОЯ ПРАКТИКА</div><div className="nav-item active"><Headphones size={17}/> Сейчас играю</div><div className="sidebar-divider"/><div className="sidebar-label track-label">БЫСТРЫЙ СТАРТ <button aria-label="Добавить трек"><Plus size={14}/></button></div>{videoId?<button className="track-card" onClick={()=>player.current?.playVideo()}><div className="track-thumb"><Music2 size={16}/></div><div><strong>Видео YouTube</strong><small>Последняя сессия</small></div><Play size={13}/></button>:<div className="sidebar-empty">Твои треки появятся здесь после первой тренировки.</div>}<div className="sidebar-bottom"><div className="focus-card"><div className="focus-icon"><AudioLines size={17}/></div><strong>Маленький шаг.</strong><span>Чистое повторение — уже прогресс.</span></div><div className="help-link"><CircleHelp size={15}/> Настройки хранятся на устройстве</div></div></aside>
+  <header className="topbar"><div className="brand"><div className="brand-mark"><Activity size={19}/></div><span>music<span className="brand-accent">train</span></span><span className="brand-beta">BETA</span></div><div className="topbar-center"><span className="status-dot"/>LOCAL SESSION</div><div className="avatar">M</div></header>
+  <main className="workspace"><aside className="sidebar"><div className="sidebar-label">МОЯ ПРАКТИКА</div><div className="nav-item active"><Headphones size={17}/> Сейчас играю</div><div className="sidebar-divider"/><div className="sidebar-label track-label">ПОСЛЕДНЕЕ ВИДЕО</div>{videoId?<button className="track-card" onClick={()=>player.current?.playVideo()}><div className="track-thumb"><Music2 size={16}/></div><div><strong>Видео YouTube</strong><small>Последняя сессия</small></div><Play size={13}/></button>:<div className="sidebar-empty">Твои треки появятся здесь после первой тренировки.</div>}<div className="sidebar-bottom"><div className="focus-card"><div className="focus-icon"><AudioLines size={17}/></div><strong>Маленький шаг.</strong><span>Чистое повторение — уже прогресс.</span></div><div className="help-link"><CircleHelp size={15}/> Настройки хранятся на устройстве</div></div></aside>
   <section className="main-panel"><div className="page-heading"><div><div className="eyebrow">ТРЕНАЖЁР <span>/</span> СЕССИЯ 01</div><h1>Настрой звук.<br/><span>Поймай момент.</span></h1></div><div className="session-chip"><span className="chip-led"/> РЕЖИМ ПРАКТИКИ</div></div>
    <div className="link-entry"><div className="link-symbol"><Link2 size={18}/></div><div className="link-copy"><label htmlFor="video-url">ССЫЛКА НА ВИДЕО</label><input id="video-url" value={input} onChange={e=>setInput(e.target.value)} onKeyDown={e=>e.key==='Enter'&&loadVideo()} placeholder="Вставь ссылку на YouTube" /></div><button className="load-button" onClick={()=>loadVideo()}><span>{videoId?'Заменить видео':'Загрузить видео'}</span><ArrowDownToLine size={15}/></button></div>
    {error&&<div className="error-banner" role="alert">{error}{videoId&&<a href={`https://www.youtube.com/watch?v=${videoId}`} target="_blank" rel="noreferrer">Открыть на YouTube <ExternalLink size={13}/></a>}</div>}
@@ -36,5 +36,7 @@ export default function App(){
   </section></main>
  </div>;
 }
+
+
 
 
