@@ -162,6 +162,25 @@ describe('YouTube player lifecycle', () => {
     expect(player.seekTo).not.toHaveBeenCalled();
   });
 
+  it('ignores app shortcuts inside plaintext-only editable content', async () => {
+    render(<App />);
+    await act(async () => { window.onYouTubeIframeAPIReady?.(); });
+    fireEvent.change(screen.getByLabelText('ССЫЛКА НА ВИДЕО'), { target: { value: 'https://youtu.be/dQw4w9WgXcQ' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Загрузить видео' }));
+    const player = MockYouTubePlayer.instances[0];
+    act(() => player.options.events.onReady({ target: player }));
+
+    const editor = document.createElement('div');
+    editor.setAttribute('contenteditable', 'PLAINTEXT-ONLY');
+    document.body.appendChild(editor);
+    try {
+      fireEvent.keyDown(editor, { key: 'm' });
+      expect(screen.getByRole('switch').getAttribute('aria-checked')).toBe('false');
+    } finally {
+      editor.remove();
+    }
+  });
+
   it('does not treat Space on a focused button as the global play shortcut', async () => {
     render(<App />);
     await act(async () => { window.onYouTubeIframeAPIReady?.(); });
@@ -201,6 +220,10 @@ describe('YouTube player lifecycle', () => {
     metronomeSwitch.focus();
     fireEvent.keyDown(metronomeSwitch, { key: 'm' });
     expect(metronomeSwitch.getAttribute('aria-checked')).toBe('true');
+
+    firstBeatButton.focus();
+    fireEvent.keyDown(firstBeatButton, { key: 'ArrowRight' });
+    expect(player.seekTo).toHaveBeenLastCalledWith(25, true);
   });
 
   it('ignores held-key repeats for toggles and loop markers but keeps repeated seeking', async () => {

@@ -41,5 +41,5 @@
 - [x] **Step 2: Run `npm test -- --reporter=dot src/renderer/ui/App.test.tsx -t "focused|repeat|help copy"` and confirm the new assertions fail for the expected shortcut behavior.** New repeat/help assertions failed before implementation; focused-button checks also reproduced the existing target suppression.
 - [x] **Step 3: Implement selective target handling and repeat suppression in the keydown effect.** Keep editable controls excluded; preserve native Space on buttons/links; allow app shortcuts from buttons; ignore repeat events except for Left/Right.
 - [x] **Step 4: Replace the help note with an instruction to click the visible `?` button after clicking the YouTube player.**
-- [x] **Step 5: Run focused tests, `npm test -- --reporter=dot`, `npm run build`, and `npm audit --audit-level=moderate`.** 43/43 tests pass; production build passes; npm audit reports 0 vulnerabilities.
+- [x] **Step 5: Run focused tests, `npm test -- --reporter=dot`, `npm run build`, and `npm audit --audit-level=moderate`.** 44/44 tests pass; production build passes; npm audit reports 0 vulnerabilities.
 - [ ] **Step 6: Request a read-only visual/code review, address findings, commit, push, and open a PR linked to the new issue. Merge only after CI passes.**

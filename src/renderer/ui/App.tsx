@@ -7,7 +7,7 @@ const eligibilityApi = import.meta.env.VITE_ELIGIBILITY_API as string | undefine
 declare global { interface Window { YT:any; onYouTubeIframeAPIReady?:()=>void; musicTrain?:{version:()=>Promise<string>} } }
 const format=(n:number)=>`${Math.floor(n/60).toString().padStart(2,'0')}:${Math.floor(n%60).toString().padStart(2,'0')}`;
 const rates=[0.5,0.75,0.9,1,1.1,1.25];
-const isEditableTarget=(target:EventTarget|null)=>target instanceof Element&&target.closest('input,textarea,select,[role="slider"],[contenteditable="true"],[contenteditable=""]')!==null;
+const isEditableTarget=(target:EventTarget|null)=>target instanceof Element&&target.closest('input,textarea,select,[role="slider"],[contenteditable="true" i],[contenteditable="plaintext-only" i],[contenteditable=""]')!==null;
 const isSpaceActivationTarget=(target:EventTarget|null)=>target instanceof Element&&target.closest('button,a,[role="button"],[role="switch"]')!==null;
 
 export default function App(){
