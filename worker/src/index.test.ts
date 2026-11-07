@@ -20,6 +20,23 @@ describe('eligibility endpoint', () => {
     const response = await worker.fetch(new Request('https://worker.test/v1/videos/dQw4w9WgXcQ/eligibility'), env);
     expect(await response.json()).toEqual({ eligible: true });
   });
+  it('denies videos with embedding disabled', async () => {
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(new Response(JSON.stringify({ items: [{ status: { privacyStatus: 'public', embeddable: false } }] }))));
+    const response = await worker.fetch(new Request('https://worker.test/v1/videos/dQw4w9WgXcQ/eligibility'), env);
+    expect(await response.json()).toEqual({ eligible: false, reason: 'embedding_disabled' });
+  });
+  it('reports a missing video as unavailable', async () => {
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(new Response(JSON.stringify({ items: [] }))));
+    const response = await worker.fetch(new Request('https://worker.test/v1/videos/dQw4w9WgXcQ/eligibility'), env);
+    expect(await response.json()).toEqual({ eligible: false, reason: 'unavailable' });
+  });
+  it('fails closed when the YouTube API key is missing', async () => {
+    const fetchMock = vi.fn(); vi.stubGlobal('fetch', fetchMock);
+    const noKeyEnv = { ...env, YOUTUBE_API_KEY: '' };
+    const response = await worker.fetch(new Request('https://worker.test/v1/videos/dQw4w9WgXcQ/eligibility'), noKeyEnv);
+    expect(response.status).toBe(503); expect(fetchMock).not.toHaveBeenCalled();
+    expect(noKeyEnv.RATE_LIMITER.limit).not.toHaveBeenCalled();
+  });
   it('does not misreport an invalid API key as exhausted quota', async () => {
     vi.stubGlobal('fetch', vi.fn().mockResolvedValue(new Response(JSON.stringify({ error: { errors: [{ reason: 'keyInvalid' }] } }), { status: 403 })));
     const response = await worker.fetch(new Request('https://worker.test/v1/videos/dQw4w9WgXcQ/eligibility'), env);
