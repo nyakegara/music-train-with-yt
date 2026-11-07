@@ -1103,7 +1103,7 @@ describe('saved practice segments', () => {
   });
   afterEach(() => { cleanup(); vi.useRealTimers(); vi.unstubAllGlobals(); vi.unstubAllEnvs(); vi.restoreAllMocks(); });
 
-  async function loadReadyVideo(videoId = 'dQw4w9WgXcQ') {
+  async function loadReadyVideo(videoId = 'dQw4w9WgXcQ', markPlayerReady = true) {
     vi.stubEnv('VITE_ELIGIBILITY_API', 'https://eligibility.example');
     vi.stubGlobal('fetch', vi.fn().mockResolvedValue({ ok: true, json: vi.fn().mockResolvedValue({ eligible: true }) }));
     render(<App />);
@@ -1112,7 +1112,7 @@ describe('saved practice segments', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Загрузить видео' }));
     await waitFor(() => expect(MockYouTubePlayer.instances).toHaveLength(1));
     const player = MockYouTubePlayer.instances[0];
-    act(() => player.options.events.onReady({ target: player }));
+    if (markPlayerReady) act(() => player.options.events.onReady({ target: player }));
     return player;
   }
 
@@ -1202,6 +1202,14 @@ describe('saved practice segments', () => {
     const staleRange = await screen.findByRole('button', { name: /Выбрать фрагмент: Длинный фрагмент/ });
     expect(staleRange.hasAttribute('disabled')).toBe(true);
     expect(player.seekTo).not.toHaveBeenCalled();
+  });
+
+  it('explains that saved ranges are unavailable while the player loads', async () => {
+    localStorage.setItem('practice-segments:dQw4w9WgXcQ', JSON.stringify([{ id: 'saved-range', label: 'Припев', loopA: 12, loopB: 24 }]));
+    await loadReadyVideo('dQw4w9WgXcQ', false);
+    fireEvent.click(screen.getByText('Сохранённые фрагменты'));
+    const range = await screen.findByRole('button', { name: /Выбрать фрагмент: Припев/ });
+    expect(range.getAttribute('title')).toBe('Дождись загрузки плеера.');
   });
 
   it('explains when the active A/B markers no longer fit the video duration', async () => {
