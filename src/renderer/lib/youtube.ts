@@ -78,6 +78,18 @@ export function youtubePlayerOrigin(isDevelopment: boolean, localOrigin: string)
   return isDevelopment ? localOrigin : 'https://com.musictrain.desktop';
 }
 
+export function youtubePlayerErrorMessage(code: number | undefined): string {
+  switch (code) {
+    case 2: return 'YouTube отклонил ссылку на видео. Проверь адрес и попробуй снова.';
+    case 5: return 'Плеер YouTube не смог запустить это видео. Попробуй обновить его или открыть на YouTube.';
+    case 100: return 'Видео удалено, скрыто или недоступно. Открой YouTube, чтобы проверить доступ.';
+    case 101:
+    case 150: return 'Автор видео запретил воспроизведение на других сайтах. Открой его на YouTube.';
+    case 153: return 'YouTube не подтвердил источник видео. Обнови приложение и попробуй снова.';
+    default: return 'Это видео нельзя воспроизвести здесь. Проверь доступность или открой его на YouTube.';
+  }
+}
+
 export type PracticeSettings = {
   bpm: number;
   timeSignature: 3 | 4;
