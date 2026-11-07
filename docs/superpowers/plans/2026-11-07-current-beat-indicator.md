@@ -1,0 +1,65 @@
+# Current Beat Indicator Implementation Plan
+
+> **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
+
+**Goal:** Show a visual beat cue that tracks the YouTube recording in the existing metronome card.
+
+**Architecture:** Add a pure helper that maps recording position to a zero-based beat index. Keep the first-beat anchor strict and apply the scheduler's 20 ms tolerance to later boundaries. Render the index modulo the selected meter in the existing beat line; derive active state from the existing player, metronome, and actual position state.
+
+**Tech Stack:** React, TypeScript, Vitest, Testing Library.
+
+**Spec:** `docs/superpowers/specs/2026-11-07-current-beat-indicator.md`
+
+## Global Constraints
+
+- Use actual player position and recording-time BPM; do not create an independent animation clock.
+- Keep the line inactive while paused, buffering, unavailable, or with the metronome off.
+- Do not change sound scheduling or saved settings.
+
+## Review Focus
+
+- Before the marked first beat: no marker is active.
+- At the first-beat anchor the indicator turns on exactly at the marked position; at later boundaries it follows the sound scheduler's 20 ms tolerance.
+- 3/4 and 4/4: render the correct number of markers and wrap the active beat within the bar.
+- Pause, buffering, player error, and metronome off: every marker is dim.
+- Seek or speed change: use the latest actual video position, even if it differs from the requested seek position.
+- Accessibility: concise label updates without a live announcement stream.
+
+---
+
+### Task 1: Calculate the active beat from recording position
+
+**Files:**
+- Modify: `src/renderer/lib/youtube.ts`
+- Test: `src/renderer/lib/youtube.test.ts`
+
+**Interface:**
+- Add `beatIndexAt(time: number, firstBeat: number, bpm: number): number`.
+- Return `-1` before the first beat; otherwise return the zero-based beat index. Use the same 20 ms tolerance as `nextBeatTime`.
+
+- [x] Write tests for pre-first-beat, first beat, beat boundaries, 20 ms tolerance, and invalid BPM.
+- [x] Run focused tests and confirm the new helper is missing.
+- [x] Implement the helper and share the 20 ms tolerance constant with `nextBeatTime`.
+- [x] Run focused unit tests.
+- [x] Commit Task 1.
+
+### Task 2: Render an accessible, live beat line
+
+**Files:**
+- Modify: `src/renderer/ui/App.tsx`
+- Modify: `src/renderer/ui/styles.css`
+- Test: `src/renderer/ui/App.test.tsx`
+
+- [x] Add component tests for 3/4 and 4/4 marker counts, active downbeat and other beat, inactive states, and accessible labels.
+- [x] Run focused tests and confirm the active-beat expectations fail before implementation.
+- [x] Render meter-sized markers, highlight the active beat from `current`, `firstBeat`, and BPM, and dim them unless the player is ready, playing, and the metronome is enabled.
+- [x] Add minimal states for muted, active mint, and active amber markers; keep the existing layout and sizing.
+- [x] Run the focused component tests.
+- [x] Run full tests (109 passed), production build, and `git diff --check`.
+- [x] Commit Task 2.
+
+### Task 3: Review and PR
+
+- [x] Request a read-only whole-branch review; fix the early first-beat activation and inactive downbeat color, and add direct coverage for 4/4 wrap, player error, and delayed seek reconciliation.
+- [x] Open an issue-linked PR for #29 (PR #30).
+- [x] Run the final full test suite, production build, and `git diff --check`; record the result. The `task-done` wrapper could not start because Git Bash failed to create its signal pipe (Win32 error 5), so the suite ran directly and its result was recorded in the ledger.

@@ -179,10 +179,18 @@ export function clampPosition(position: number, duration: number): number {
   return Math.min(duration, Math.max(0, position));
 }
 
+const BEAT_TOLERANCE_SECONDS = 0.02;
+
+export function beatIndexAt(time: number, firstBeat: number, bpm: number): number {
+  if (!Number.isFinite(time) || !Number.isFinite(firstBeat) || !Number.isFinite(bpm) || bpm <= 0) return -1;
+  if (time < firstBeat) return -1;
+  return Math.max(0, Math.floor((time - firstBeat + BEAT_TOLERANCE_SECONDS) / (60 / bpm)));
+}
+
 export function nextBeatTime(time: number, firstBeat: number, bpm: number): number {
-  if (time < firstBeat - 0.02) return firstBeat;
+  if (time < firstBeat - BEAT_TOLERANCE_SECONDS) return firstBeat;
   const interval = 60 / bpm;
-  return firstBeat + Math.ceil((time - firstBeat - 0.02) / interval) * interval;
+  return firstBeat + Math.ceil((time - firstBeat - BEAT_TOLERANCE_SECONDS) / interval) * interval;
 }
 
 export function isDownbeat(beatIndex: number, beatsPerBar: 3 | 4): boolean {

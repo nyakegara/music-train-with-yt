@@ -13,3 +13,8 @@
 .player-api-error{align-items:center}
 .player-api-error button{border:1px solid #51422e;background:#2a241d;color:#e8bc72;border-radius:4px;padding:5px 9px;font:9px var(--mono);cursor:pointer}
 
+.beat-line{align-items:center}
+.beat-line .beat-marker{background:#37372f;opacity:.55;transition:background-color .08s linear,opacity .08s linear,height .08s linear}
+.beat-line .beat-marker.is-active{height:4px;background:var(--mint);opacity:1}
+.beat-line .beat-marker.is-downbeat.is-active{background:var(--amber)}
+.beat-line span.beat-marker{background:#37372f}
