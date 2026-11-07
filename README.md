@@ -24,5 +24,24 @@ The NSIS installer is written to `release/`. `npm run dist:win` rejects a missin
 
 ## Current scope
 
-The first version stores BPM, first beat, metronome volume, playback speed, and loop markers locally per video. The metronome always opens switched off so it starts only after an explicit user action. Automatic beat detection and automatic tab transcription are tracked for future versions in the GitHub issues.
+The app stores BPM, first beat, metronome volume, playback speed, meter, and loop markers locally per video. The metronome always opens switched off so it starts only after an explicit user action. Automatic beat detection and automatic tab transcription are tracked for future versions in the GitHub issues.
+
+### Meter and keyboard controls
+
+Choose **3/4** or **4/4** in the metronome card. The first beat of each bar gets the stronger click. The meter is manual; the app does not detect a song's meter automatically. Existing saved videos default to 4/4.
+
+| Key | Action |
+| --- | --- |
+| Space | Play or pause |
+| ← / → | Seek 5 seconds |
+| A / B | Set loop start or end at the current position |
+| M | Toggle the metronome |
+| ? | Open shortcut help |
+| Esc | Close shortcut help |
+
+Video controls require a ready player. Shortcuts are ignored in text fields and sliders. YouTube's iframe can take keyboard focus; if shortcuts stop responding after clicking the video, click the app's **?** control to return focus.
+
+### Eligibility service
+
+The production Worker is deployed at `https://music-train-eligibility.musictrain.workers.dev`. It needs a YouTube Data API key stored as the `YOUTUBE_API_KEY` Cloudflare secret before it can approve videos. From the `worker/` directory, set it with `npx wrangler secret put YOUTUBE_API_KEY`; enter the key in the Wrangler prompt and never commit it to the repository. Until the secret is configured, the Worker returns `503 service_unavailable` and the app asks the user to retry.
 
