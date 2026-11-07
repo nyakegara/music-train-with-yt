@@ -162,6 +162,18 @@ describe('YouTube player lifecycle', () => {
     expect(player.seekTo).not.toHaveBeenCalled();
   });
 
+  it('does not treat Space on a focused button as the global play shortcut', async () => {
+    render(<App />);
+    await act(async () => { window.onYouTubeIframeAPIReady?.(); });
+    fireEvent.change(screen.getByLabelText('ССЫЛКА НА ВИДЕО'), { target: { value: 'https://youtu.be/dQw4w9WgXcQ' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Загрузить видео' }));
+    const player = MockYouTubePlayer.instances[0];
+    act(() => player.options.events.onReady({ target: player }));
+    const meterButton = screen.getByRole('button', { name: 'Размер такта 3/4' });
+    fireEvent.keyDown(meterButton, { key: ' ' });
+    expect(player.playVideo).not.toHaveBeenCalled();
+  });
+
   it('sets loop markers, toggles the metronome, and shows shortcut help from the keyboard', async () => {
     render(<App />);
     await act(async () => { window.onYouTubeIframeAPIReady?.(); });
@@ -220,6 +232,25 @@ describe('YouTube player lifecycle', () => {
     await act(async () => { await vi.advanceTimersByTimeAsync(20); });
     expect(MockAudioContext.instance.oscillators).toHaveLength(1);
     expect(MockAudioContext.instance.oscillators[0].start).toHaveBeenCalledWith(expect.closeTo(0.8));
+  });
+
+  it('updates the metronome downbeat accent when the meter changes during playback', async () => {
+    vi.useFakeTimers();
+    localStorage.setItem('practice:dQw4w9WgXcQ', JSON.stringify({ bpm: 60, firstBeat: 0, timeSignature: 4, speed: 1, loopA: null, loopB: null, metronomeEnabled: false, volume: 0.35 }));
+    render(<App />);
+    await act(async () => { window.onYouTubeIframeAPIReady?.(); });
+    fireEvent.change(screen.getByLabelText('ССЫЛКА НА ВИДЕО'), { target: { value: 'https://youtu.be/dQw4w9WgXcQ' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Загрузить видео' }));
+    const player = MockYouTubePlayer.instances[0];
+    act(() => player.options.events.onReady({ target: player }));
+    fireEvent.change(screen.getByRole('slider', { name: 'Позиция видео' }), { target: { value: '4' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Играть' }));
+    fireEvent.click(screen.getByRole('switch'));
+    await act(async () => { await vi.advanceTimersByTimeAsync(20); });
+    expect(MockAudioContext.instance.oscillators.at(-1)?.frequency.value).toBe(1200);
+    fireEvent.click(screen.getByRole('button', { name: 'Размер такта 3/4' }));
+    await act(async () => { await vi.advanceTimersByTimeAsync(20); });
+    expect(MockAudioContext.instance.oscillators.at(-1)?.frequency.value).toBe(850);
   });
 
   it('cancels an off-grid pending click when the A/B loop returns to A', async () => {
