@@ -1204,6 +1204,20 @@ describe('saved practice segments', () => {
     expect(player.seekTo).not.toHaveBeenCalled();
   });
 
+  it('explains when the active A/B markers no longer fit the video duration', async () => {
+    localStorage.setItem('practice:dQw4w9WgXcQ', JSON.stringify({ loopA: 10, loopB: 240 }));
+    await loadReadyVideo();
+    expect(screen.getByText('Этот диапазон не помещается в видео. Отметь A/B заново.')).toBeTruthy();
+  });
+
+  it('treats a non-finite player duration as unknown and keeps saving disabled', async () => {
+    localStorage.setItem('practice:dQw4w9WgXcQ', JSON.stringify({ loopA: 10, loopB: 15 }));
+    vi.spyOn(MockYouTubePlayer.prototype, 'getDuration').mockReturnValue(Number.POSITIVE_INFINITY);
+    await loadReadyVideo();
+    expect(screen.getByRole('button', { name: 'Сохранить фрагмент' }).hasAttribute('disabled')).toBe(true);
+    expect(screen.getByText('Не удалось определить длительность видео.')).toBeTruthy();
+  });
+
   it('keeps the saved list unchanged and announces local-storage write errors', async () => {
     await loadReadyVideo();
     const originalSetItem = Storage.prototype.setItem;
