@@ -25,6 +25,7 @@
 - Local limiter response: preserve HTTP `429` and provide a 60-second retry delay.
 - Cross-origin clients: `Retry-After` is readable on errors and the preflight response advertises it.
 - Network rejection and malformed success JSON shape: show a temporary service error rather than treating an invalid video as ineligible.
+- `status.madeForKids`, when present, must be boolean; malformed values must fail closed instead of accidentally allowing the video.
 - Renderer response JSON parse failure: retain the existing connection fallback and keep the pasted link for manual retry.
 
 ---
@@ -47,7 +48,7 @@
 - [x] **Step 2: Run `npm test -- --reporter=dot worker/src/index.test.ts` and confirm the new expectations fail on the current implementation.** Baseline tests first failed on 12 new expectations; focused checks later confirmed limiter/configuration semantics, lenient date parsing, malformed success-shape handling, and HTTP 400 API-key classification.
 - [x] **Step 3: Implement retry normalization and error mapping in `worker/src/index.ts`.** Accept only valid delta-seconds or canonical HTTP-date, clamp to 1–3600 seconds, and default invalid/missing values to 30; use 60 seconds for the local limiter; classify rate-limit and API-key error reasons on their documented HTTP statuses; treat malformed success shapes as temporary upstream errors; expose `Retry-After` through CORS and do not return upstream text.
 - [x] **Step 4: Document response codes, retry semantics, and CORS visibility in `worker/README.md`.**
-- [x] **Step 5: Run the Worker test file and verify every new error response is sanitized.** 35 Worker tests pass.
+- [x] **Step 5: Run the Worker test file and verify every new error response is sanitized.** 38 Worker tests pass, including malformed `madeForKids` values.
 
 ### Task 2: Show actionable eligibility errors
 
@@ -65,5 +66,5 @@
 - [x] **Step 2: Add failing component tests.** Stub the eligibility service to return a retryable 503 with `Retry-After`; assert the delay appears in the alert, the video link remains in the input, and a second click issues a second manual request. Also assert quota errors show non-retryable guidance and do not display an immediate delay.
 - [x] **Step 3: Run the new helper and component tests and confirm they fail before implementation.** The renderer agent reported 13 targeted failures before the helper and response handling were added; the non-retryable configuration case also failed before its assertion was implemented.
 - [x] **Step 4: Implement `eligibilityErrorMessage` and use it for non-OK Worker responses.** Keep network/invalid-JSON exceptions on the existing connection fallback; read Worker JSON defensively and keep the retry manual.
-- [x] **Step 5: Run `npm test -- --reporter=dot`, `npm run build`, and `npm audit --audit-level=moderate`.** 84/84 tests pass; build passes; audit reports zero vulnerabilities.
+- [x] **Step 5: Run `npm test -- --reporter=dot`, `npm run build`, and `npm audit --audit-level=moderate`.** 87/87 tests pass; build passes; audit reports zero vulnerabilities.
 - [ ] **Step 6: Run a read-only code/UX review, address findings, commit, push, open a PR linked to issue #14, and merge only when review and CI pass.**

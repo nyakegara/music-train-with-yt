@@ -146,6 +146,13 @@ describe('eligibility endpoint', () => {
     expect(await response.json()).toEqual({ error: 'upstream_unavailable', retryable: true });
     expect(response.headers.get('Retry-After')).toBe('30');
   });
+  it.each([0, 'false', null])('fails closed when madeForKids has malformed type %o', async (madeForKids) => {
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(new Response(JSON.stringify({ items: [{ status: { privacyStatus: 'public', embeddable: true, madeForKids } }] }))));
+    const response = await worker.fetch(new Request('https://worker.test/v1/videos/dQw4w9WgXcQ/eligibility'), env);
+    expect(response.status).toBe(503);
+    expect(await response.json()).toEqual({ error: 'upstream_unavailable', retryable: true });
+    expect(response.headers.get('Retry-After')).toBe('30');
+  });
   it('advertises Retry-After to cross-origin clients on preflight', async () => {
     const response = await worker.fetch(new Request('https://worker.test/v1/videos/dQw4w9WgXcQ/eligibility', { method: 'OPTIONS' }), env);
     expect(response.status).toBe(204);
