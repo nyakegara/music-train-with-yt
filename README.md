@@ -23,5 +23,5 @@ The NSIS installer is written to `release/`. The YouTube embedded player require
 
 ## Current scope
 
-The first version stores BPM, first beat, playback speed, loop markers, and metronome settings locally per video. Automatic beat detection and automatic tab transcription are tracked for future versions in the GitHub issues.
+The first version stores BPM, first beat, metronome volume, playback speed, and loop markers locally per video. The metronome always opens switched off so it starts only after an explicit user action. Automatic beat detection and automatic tab transcription are tracked for future versions in the GitHub issues.
 

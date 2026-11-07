@@ -20,6 +20,18 @@ describe('eligibility endpoint', () => {
     const response = await worker.fetch(new Request('https://worker.test/v1/videos/dQw4w9WgXcQ/eligibility'), env);
     expect(await response.json()).toEqual({ eligible: true });
   });
+  it('does not misreport an invalid API key as exhausted quota', async () => {
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(new Response(JSON.stringify({ error: { errors: [{ reason: 'keyInvalid' }] } }), { status: 403 })));
+    const response = await worker.fetch(new Request('https://worker.test/v1/videos/dQw4w9WgXcQ/eligibility'), env);
+    expect(response.status).toBe(503);
+    expect(await response.json()).toEqual({ error: 'youtube_api_forbidden' });
+  });
+  it('reports quota exhaustion only for a recognized quota error', async () => {
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(new Response(JSON.stringify({ error: { errors: [{ reason: 'quotaExceeded' }] } }), { status: 403 })));
+    const response = await worker.fetch(new Request('https://worker.test/v1/videos/dQw4w9WgXcQ/eligibility'), env);
+    expect(response.status).toBe(503);
+    expect(await response.json()).toEqual({ error: 'quota_exceeded' });
+  });
   it('returns 429 without calling YouTube when the client exceeds the limit', async () => {
     const rateEnv = { ...env, RATE_LIMITER: { limit: vi.fn().mockResolvedValue({ success: false }) } };
     const fetchMock = vi.fn(); vi.stubGlobal('fetch', fetchMock);

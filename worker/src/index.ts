@@ -6,6 +6,19 @@ const json = (body: unknown, status = 200) => new Response(JSON.stringify(body),
 });
 
 const validId = (id: string) => /^[A-Za-z0-9_-]{11}$/.test(id);
+const quotaReasons = new Set(['quotaExceeded', 'dailyLimitExceeded', 'userRateLimitExceeded', 'rateLimitExceeded']);
+
+async function upstreamFailure(response: Response): Promise<Response> {
+  if (response.status === 403) {
+    try {
+      const data = await response.json() as { error?: { errors?: Array<{ reason?: string }> } };
+      const reasons = data.error?.errors?.map((error) => error.reason) ?? [];
+      if (reasons.some((reason) => reason && quotaReasons.has(reason))) return json({ error: 'quota_exceeded' }, 503);
+    } catch { /* The upstream error body is optional; keep the generic diagnosis. */ }
+    return json({ error: 'youtube_api_forbidden' }, 503);
+  }
+  return json({ error: 'youtube_unavailable' }, 502);
+}
 
 export default {
   async fetch(request: Request, env: Env): Promise<Response> {
@@ -27,7 +40,7 @@ export default {
       const apiUrl = new URL('https://www.googleapis.com/youtube/v3/videos');
       apiUrl.search = new URLSearchParams({ part: 'status', id: videoId, key: env.YOUTUBE_API_KEY }).toString();
       const response = await fetch(apiUrl, { headers: { accept: 'application/json' }, signal: AbortSignal.timeout(6000) });
-      if (response.status === 404 || !response.ok) return json({ error: response.status === 403 ? 'quota_exceeded' : 'youtube_unavailable' }, response.status === 403 ? 503 : 502);
+      if (!response.ok) return upstreamFailure(response);
       const data = await response.json() as { items?: Array<{ status?: { embeddable?: boolean; privacyStatus?: string; madeForKids?: boolean } }> };
       const item = data.items?.[0];
       if (!item) return json({ eligible: false, reason: 'unavailable' });
