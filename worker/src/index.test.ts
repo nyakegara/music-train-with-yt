@@ -22,6 +22,8 @@ describe('eligibility endpoint', () => {
     expect(await response.json()).toEqual({ eligible: true });
     const [requestUrl, init] = fetchMock.mock.calls[0];
     expect(String(requestUrl)).not.toContain('key=');
+    expect(new URL(String(requestUrl)).searchParams.get('part')).toBe('id,status');
+    expect(new URL(String(requestUrl)).searchParams.get('id')).toBe('dQw4w9WgXcQ');
     expect((init.headers as Record<string, string>)['x-goog-api-key']).toBe('key');
   });
   it('denies videos with embedding disabled', async () => {
