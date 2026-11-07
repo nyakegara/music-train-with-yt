@@ -47,7 +47,7 @@ export default {
       const status = item.status ?? {};
       if (status.madeForKids) return json({ eligible: false, reason: 'made_for_kids' });
       if (status.privacyStatus !== 'public') return json({ eligible: false, reason: 'not_public' });
-      if (status.embeddable === false) return json({ eligible: false, reason: 'embedding_disabled' });
+      if (status.embeddable !== true) return json({ eligible: false, reason: 'embedding_disabled' });
       return json({ eligible: true });
     } catch {
       return json({ error: 'youtube_unavailable' }, 502);

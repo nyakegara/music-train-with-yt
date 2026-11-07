@@ -25,6 +25,11 @@ describe('eligibility endpoint', () => {
     const response = await worker.fetch(new Request('https://worker.test/v1/videos/dQw4w9WgXcQ/eligibility'), env);
     expect(await response.json()).toEqual({ eligible: false, reason: 'embedding_disabled' });
   });
+  it('fails closed when the upstream response does not confirm embedding support', async () => {
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(new Response(JSON.stringify({ items: [{ status: { privacyStatus: 'public' } }] }))));
+    const response = await worker.fetch(new Request('https://worker.test/v1/videos/dQw4w9WgXcQ/eligibility'), env);
+    expect(await response.json()).toEqual({ eligible: false, reason: 'embedding_disabled' });
+  });
   it('reports a missing video as unavailable', async () => {
     vi.stubGlobal('fetch', vi.fn().mockResolvedValue(new Response(JSON.stringify({ items: [] }))));
     const response = await worker.fetch(new Request('https://worker.test/v1/videos/dQw4w9WgXcQ/eligibility'), env);

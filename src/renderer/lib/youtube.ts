@@ -126,6 +126,18 @@ export function loopEndAt(position: number, duration: number, start: number | nu
 }
 
 export function nextBeatTime(time: number, firstBeat: number, bpm: number): number {
+  if (time < firstBeat - 0.02) return firstBeat;
   const interval = 60 / bpm;
   return firstBeat + Math.ceil((time - firstBeat - 0.02) / interval) * interval;
+}
+
+export function nextBeatSchedule(time: number, firstBeat: number, bpm: number, speed: number): { beatTime: number; beatIndex: number; audioDelay: number } {
+  const beatTime = nextBeatTime(time, firstBeat, bpm);
+  const beatInterval = 60 / bpm;
+  const playbackRate = Number.isFinite(speed) && speed > 0 ? speed : 1;
+  return {
+    beatTime,
+    beatIndex: Math.round((beatTime - firstBeat) / beatInterval),
+    audioDelay: Math.max(0, beatTime - time) / playbackRate,
+  };
 }
