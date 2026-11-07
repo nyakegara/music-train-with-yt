@@ -34,6 +34,7 @@ export function youtubePlayerOrigin(isDevelopment: boolean, localOrigin: string)
 
 export type PracticeSettings = {
   bpm: number;
+  timeSignature: 3 | 4;
   firstBeat: number;
   speed: number;
   loopA: number | null;
@@ -44,6 +45,7 @@ export type PracticeSettings = {
 
 export const DEFAULT_SETTINGS: PracticeSettings = {
   bpm: 100,
+  timeSignature: 4,
   firstBeat: 0,
   speed: 1,
   loopA: null,
@@ -80,6 +82,7 @@ export function sanitizeSettings(value: unknown): PracticeSettings {
 
   return {
     bpm: Math.round(boundedNumber(value.bpm, DEFAULT_SETTINGS.bpm, 40, 240)),
+    timeSignature: value.timeSignature === 3 ? 3 : 4,
     firstBeat: boundedNumber(value.firstBeat, DEFAULT_SETTINGS.firstBeat, 0, Number.MAX_SAFE_INTEGER),
     speed: typeof value.speed === 'number' && knownPlaybackRates.has(value.speed) ? value.speed : DEFAULT_SETTINGS.speed,
     loopA,
@@ -125,10 +128,19 @@ export function loopEndAt(position: number, duration: number, start: number | nu
   return Math.min(duration, Math.max(minimum, position));
 }
 
+export function clampPosition(position: number, duration: number): number {
+  if (!Number.isFinite(position) || !Number.isFinite(duration) || duration <= 0) return 0;
+  return Math.min(duration, Math.max(0, position));
+}
+
 export function nextBeatTime(time: number, firstBeat: number, bpm: number): number {
   if (time < firstBeat - 0.02) return firstBeat;
   const interval = 60 / bpm;
   return firstBeat + Math.ceil((time - firstBeat - 0.02) / interval) * interval;
+}
+
+export function isDownbeat(beatIndex: number, beatsPerBar: 3 | 4): boolean {
+  return Number.isInteger(beatIndex) && beatIndex >= 0 && beatIndex % beatsPerBar === 0;
 }
 
 export function nextBeatSchedule(time: number, firstBeat: number, bpm: number, speed: number): { beatTime: number; beatIndex: number; audioDelay: number } {
