@@ -68,7 +68,7 @@ export function eligibilityErrorMessage(errorCode: string | undefined, retryAfte
     case 'youtube_api_forbidden':
       return 'Сервису проверки запрещён доступ к YouTube. Требуется исправить настройки сервиса.';
     case 'upstream_rejected':
-      return 'YouTube отклонил запрос проверки. Попробуй позже.';
+      return 'Проверка не смогла подтвердить доступность видео. Открой видео на YouTube.';
     default:
       return 'Не удалось проверить видео. Попробуй позже.';
   }

@@ -43,6 +43,8 @@ describe('eligibility service error messages',()=>{
   const text=message('upstream_rejected','120',false);
   expect(text).toBeTruthy();
   expect(text).not.toContain('120');
+  expect(text).not.toContain('Попробуй позже');
+  expect(text).toContain('Открой видео на YouTube');
  });
  it.each([null,'','0','3601','later','1.5'])('does not show an invalid retry delay (%s)',retryAfter=>{
   const text=message('upstream_unavailable',retryAfter);
