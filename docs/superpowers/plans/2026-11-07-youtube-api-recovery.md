@@ -59,6 +59,7 @@
 
 ### Task 3: Final verification and review
 
-- [ ] Run `npm test` and confirm all tests pass.
-- [ ] Run `npm run build` and confirm the production build passes.
-- [ ] Run `git diff --check`, request a read-only code review, address any concrete findings, and open an issue-linked PR for #25.
+- [x] Run `npm test` and confirm all tests pass.
+- [x] Run `npm run build` and confirm the production build passes.
+- [x] Run `git diff --check`, request a read-only code review, address Critical/Important findings, and record any deferred minor.
+- [ ] Open an issue-linked PR for #25.
