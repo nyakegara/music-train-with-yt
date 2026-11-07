@@ -143,6 +143,40 @@ describe('YouTube player lifecycle', () => {
     expect(input.value).toBe(url);
   });
 
+  it('resets Tap Tempo samples when a different video loads', async () => {
+    vi.useFakeTimers();
+    const baseTime = new Date('2026-11-07T12:00:00Z');
+    vi.setSystemTime(baseTime);
+    render(<App />);
+    await act(async () => { window.onYouTubeIframeAPIReady?.(); });
+    const input = screen.getByLabelText('ССЫЛКА НА ВИДЕО');
+    const loadButton = screen.getByRole('button', { name: 'Загрузить видео' });
+    fireEvent.change(input, { target: { value: 'https://youtu.be/dQw4w9WgXcQ' } });
+    fireEvent.click(loadButton);
+    const playerA = MockYouTubePlayer.instances[0];
+    act(() => playerA.options.events.onReady({ target: playerA }));
+    const tapButton = screen.getByRole('button', { name: 'TAP' });
+
+    fireEvent.click(tapButton);
+    vi.setSystemTime(new Date(baseTime.getTime() + 500));
+    fireEvent.click(tapButton);
+    expect(JSON.parse(localStorage.getItem('practice:dQw4w9WgXcQ')!).bpm).toBe(120);
+
+    vi.setSystemTime(new Date(baseTime.getTime() + 1000));
+    fireEvent.change(input, { target: { value: 'https://youtu.be/oHg5SJYRHA0' } });
+    fireEvent.click(loadButton);
+    const playerB = MockYouTubePlayer.instances[1];
+    act(() => playerB.options.events.onReady({ target: playerB }));
+
+    vi.setSystemTime(new Date(baseTime.getTime() + 2000));
+    fireEvent.click(tapButton);
+    vi.setSystemTime(new Date(baseTime.getTime() + 2750));
+    fireEvent.click(tapButton);
+
+    expect(JSON.parse(localStorage.getItem('practice:dQw4w9WgXcQ')!).bpm).toBe(120);
+    expect(JSON.parse(localStorage.getItem('practice:oHg5SJYRHA0')!).bpm).toBe(80);
+  });
+
   it('shows service configuration guidance when service_unavailable is not retryable', async () => {
     vi.stubEnv('VITE_ELIGIBILITY_API', 'https://eligibility.example');
     const fetchMock = vi.fn().mockResolvedValue({
