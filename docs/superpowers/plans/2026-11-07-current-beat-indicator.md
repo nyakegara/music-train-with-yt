@@ -61,5 +61,5 @@
 ### Task 3: Review and PR
 
 - [x] Request a read-only whole-branch review; fix the early first-beat activation and inactive downbeat color, and add direct coverage for 4/4 wrap, player error, and delayed seek reconciliation.
-- [ ] Open an issue-linked PR for #29.
-- [ ] Run the final full test suite through `task-done`, production build, and `git diff --check`; record the result.
+- [x] Open an issue-linked PR for #29 (PR #30).
+- [x] Run the final full test suite, production build, and `git diff --check`; record the result. The `task-done` wrapper could not start because Git Bash failed to create its signal pipe (Win32 error 5), so the suite ran directly and its result was recorded in the ledger.
