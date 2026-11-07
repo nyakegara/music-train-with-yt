@@ -30,7 +30,7 @@ Published installers are listed under [GitHub Releases](https://github.com/nyake
 
 ## Current scope
 
-The app stores BPM, first beat, metronome volume, playback speed, meter, and loop markers locally per video. Named practice segments can save multiple A/B ranges per video; their labels and timestamps stay on this computer. The metronome always opens switched off so it starts only after an explicit user action. Automatic beat detection and automatic tab transcription are tracked for future versions in the GitHub issues.
+The app stores BPM, first beat, metronome volume, playback speed, meter, and loop markers locally per video. Named practice segments can save multiple A/B ranges per video; their labels and timestamps stay on this computer. The metronome always opens switched off so it starts only after an explicit user action. You can estimate BPM from a mono or stereo audio file up to 50 MB and 5 minutes; analysis happens locally, and the app stores only the accepted number for the current video. The file is not saved, and audio is never downloaded or extracted from YouTube. First-beat alignment remains manual. Automatic tab transcription is tracked for a future version in the GitHub issues.
 
 ### Speed trainer
 

@@ -2,6 +2,13 @@ import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-libra
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
+const { estimateBpmFromFile, LocalAudioAnalysisError } = vi.hoisted(() => {
+  class MockLocalAudioAnalysisError extends Error {
+    constructor(readonly code: string, message: string) { super(message); }
+  }
+  return { estimateBpmFromFile: vi.fn(), LocalAudioAnalysisError: MockLocalAudioAnalysisError };
+});
+vi.mock('../lib/localAudioAnalysis', () => ({ estimateBpmFromFile, LocalAudioAnalysisError }));
 import App from './App';
 import { YOUTUBE_API_TIMEOUT_MS } from '../lib/youtubePlayerApi';
 
@@ -74,6 +81,7 @@ describe('YouTube player lifecycle', () => {
   beforeEach(() => {
     localStorage.clear();
     MockYouTubePlayer.instances = [];
+    estimateBpmFromFile.mockReset();
     window.onYouTubeIframeAPIReady = undefined;
     document.querySelectorAll('script[src="https://www.youtube.com/iframe_api"]').forEach((script) => script.remove());
     vi.stubGlobal('AudioContext', MockAudioContext);
@@ -336,6 +344,81 @@ describe('YouTube player lifecycle', () => {
 
     expect(JSON.parse(localStorage.getItem('practice:dQw4w9WgXcQ')!).bpm).toBe(120);
     expect(JSON.parse(localStorage.getItem('practice:oHg5SJYRHA0')!).bpm).toBe(80);
+  });
+
+  it('applies a clear local audio BPM to the current video without changing first beat', async () => {
+    const player = await mountPracticeVideo();
+    const file = new File(['local audio'], 'track.mp3', { type: 'audio/mpeg' });
+    estimateBpmFromFile.mockResolvedValue({ bpm: 123, confidence: 0.92, alternatives: [] });
+
+    fireEvent.change(screen.getByLabelText('Выбрать аудиофайл для определения BPM'), { target: { files: [file] } });
+
+    await waitFor(() => expect(JSON.parse(localStorage.getItem('practice:dQw4w9WgXcQ')!).bpm).toBe(123));
+    expect(estimateBpmFromFile).toHaveBeenCalledWith(file);
+    expect(JSON.parse(localStorage.getItem('practice:dQw4w9WgXcQ')!).firstBeat).toBe(0);
+    expect(localStorage.getItem('local-audio')).toBeNull();
+    expect(player.playVideo).not.toHaveBeenCalled();
+  });
+
+  it('asks before applying an ambiguous half-time candidate', async () => {
+    await mountPracticeVideo();
+    const file = new File(['local audio'], 'track.mp3', { type: 'audio/mpeg' });
+    estimateBpmFromFile.mockResolvedValue({ bpm: 120, confidence: 0.34, alternatives: [60] });
+
+    fireEvent.change(screen.getByLabelText('Выбрать аудиофайл для определения BPM'), { target: { files: [file] } });
+
+    await screen.findByRole('combobox', { name: 'Подтвердить BPM' });
+    expect(JSON.parse(localStorage.getItem('practice:dQw4w9WgXcQ')!).bpm).toBe(100);
+    fireEvent.change(screen.getByRole('combobox', { name: 'Подтвердить BPM' }), { target: { value: '60' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Применить BPM' }));
+    await waitFor(() => expect(JSON.parse(localStorage.getItem('practice:dQw4w9WgXcQ')!).bpm).toBe(60));
+  });
+
+  it('shows a clear message for an unsupported local audio file', async () => {
+    await mountPracticeVideo();
+    const file = new File(['local audio'], 'track.mp3', { type: 'audio/mpeg' });
+    estimateBpmFromFile.mockRejectedValue(new LocalAudioAnalysisError('unsupported-channels', 'Choose mono or stereo audio.'));
+
+    fireEvent.change(screen.getByLabelText('Выбрать аудиофайл для определения BPM'), { target: { files: [file] } });
+
+    expect((await screen.findByRole('alert')).textContent).toContain('моно или стерео');
+    expect(JSON.parse(localStorage.getItem('practice:dQw4w9WgXcQ')!).bpm).toBe(100);
+  });
+
+  it('does not overwrite a manual BPM change made while local audio is being analyzed', async () => {
+    let resolveAnalysis!: (value: { bpm: number; confidence: number; alternatives: number[] }) => void;
+    const pending = new Promise<{ bpm: number; confidence: number; alternatives: number[] }>((resolve) => { resolveAnalysis = resolve; });
+    estimateBpmFromFile.mockReturnValue(pending);
+    await mountPracticeVideo();
+    const file = new File(['local audio'], 'track.mp3', { type: 'audio/mpeg' });
+    fireEvent.change(screen.getByLabelText('Выбрать аудиофайл для определения BPM'), { target: { files: [file] } });
+    await waitFor(() => expect(estimateBpmFromFile).toHaveBeenCalledWith(file));
+
+    fireEvent.click(screen.getByRole('button', { name: 'Увеличить BPM' }));
+    await act(async () => { resolveAnalysis({ bpm: 132, confidence: 0.95, alternatives: [] }); await pending; });
+
+    expect(JSON.parse(localStorage.getItem('practice:dQw4w9WgXcQ')!).bpm).toBe(101);
+    expect(screen.getByRole('combobox', { name: 'Подтвердить BPM' })).toBeTruthy();
+  });
+
+  it('discards a pending local BPM result after switching videos', async () => {
+    let resolveAnalysis!: (value: { bpm: number; confidence: number; alternatives: number[] }) => void;
+    const pending = new Promise<{ bpm: number; confidence: number; alternatives: number[] }>((resolve) => { resolveAnalysis = resolve; });
+    estimateBpmFromFile.mockReturnValue(pending);
+    const firstPlayer = await mountPracticeVideo();
+    const file = new File(['local audio'], 'track.mp3', { type: 'audio/mpeg' });
+    fireEvent.change(screen.getByLabelText('Выбрать аудиофайл для определения BPM'), { target: { files: [file] } });
+    await waitFor(() => expect(estimateBpmFromFile).toHaveBeenCalledWith(file));
+    fireEvent.change(screen.getByLabelText('ССЫЛКА НА ВИДЕО'), { target: { value: 'https://youtu.be/oHg5SJYRHA0' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Заменить видео' }));
+    await waitFor(() => expect(MockYouTubePlayer.instances).toHaveLength(2));
+    const secondPlayer = MockYouTubePlayer.instances[1];
+    act(() => secondPlayer.options.events.onReady({ target: secondPlayer }));
+    await act(async () => { resolveAnalysis({ bpm: 132, confidence: 0.95, alternatives: [] }); await pending; });
+    await pending;
+    await waitFor(() => expect(JSON.parse(localStorage.getItem('practice:oHg5SJYRHA0')!).bpm).toBe(100));
+    expect(JSON.parse(localStorage.getItem('practice:dQw4w9WgXcQ')!).bpm).toBe(100);
+    expect(firstPlayer.playVideo).not.toHaveBeenCalled();
   });
 
   it('shows service configuration guidance when service_unavailable is not retryable', async () => {
