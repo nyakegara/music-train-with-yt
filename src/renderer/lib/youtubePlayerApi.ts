@@ -34,6 +34,11 @@ export function loadYouTubeIframeApi(): Promise<void> {
   const handleFailure = () => {
     if (settled) return;
     settled = true;
+    if (window.YT?.Player) {
+      cleanup(false);
+      resolveAttempt();
+      return;
+    }
     cleanup(true);
     rejectAttempt(new Error('YouTube IFrame API failed to load.'));
   };

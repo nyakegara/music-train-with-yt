@@ -96,4 +96,16 @@ describe('YouTube IFrame API loader', () => {
     await expect(attempt).rejects.toThrow();
     expect(window.onYouTubeIframeAPIReady).toBe(otherOwner);
   });
+
+  it('resolves at timeout if the API became ready while another owner replaced the callback', async () => {
+    vi.useFakeTimers();
+    const attempt = loadYouTubeIframeApi();
+    const otherOwner = vi.fn();
+    window.onYouTubeIframeAPIReady = otherOwner;
+    (window as any).YT = { Player: class Player {} };
+
+    await vi.advanceTimersByTimeAsync(YOUTUBE_API_TIMEOUT_MS);
+    await expect(attempt).resolves.toBeUndefined();
+    expect(window.onYouTubeIframeAPIReady).toBe(otherOwner);
+  });
 });
