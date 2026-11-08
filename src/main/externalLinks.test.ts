@@ -1,5 +1,15 @@
 import { describe, expect, it } from 'vitest';
-import { isAllowedExternalUrl } from './externalLinks.js';
+import { isAllowedExternalUrl, youtubeWatchUrl } from './externalLinks.js';
+
+describe('youtubeWatchUrl', () => {
+  it('normalizes a valid video id to a clean watch URL', () => {
+    expect(youtubeWatchUrl('dQw4w9WgXcQ')).toBe('https://www.youtube.com/watch?v=dQw4w9WgXcQ');
+  });
+
+  it.each(['', 'short', 'dQw4w9WgXcQ&list=bad', 'https://example.com/dQw4w9WgXcQ'])('rejects invalid video id %s', (id) => {
+    expect(youtubeWatchUrl(id)).toBeNull();
+  });
+});
 
 describe('isAllowedExternalUrl', () => {
   it.each([

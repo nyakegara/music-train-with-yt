@@ -100,6 +100,54 @@ describe('YouTube player lifecycle', () => {
     expect(screen.getByText(/внеси его вручную/)).toBeTruthy();
   });
 
+  it('copies only the canonical YouTube URL after the user clicks the button', async () => {
+    const copyYouTubeUrl = vi.fn().mockResolvedValue(true);
+    window.musicTrain = { version: async () => '0.1.3', copyYouTubeUrl };
+    await mountPracticeVideo();
+    fireEvent.click(screen.getByRole('button', { name: 'Скопировать ссылку' }));
+    await waitFor(() => expect(screen.getByText('Ссылка скопирована. Вставь её в BPM Finder.').className).toContain('success'));
+    expect(copyYouTubeUrl).toHaveBeenCalledWith('dQw4w9WgXcQ');
+    expect(screen.getByRole('link', { name: 'Открыть BPM Finder' }).getAttribute('href')).toBe('https://youtubetoolkit.com/tools/bpm-finder');
+    window.musicTrain = undefined;
+  });
+
+  it('explains how to copy the link manually if clipboard access fails', async () => {
+    window.musicTrain = { version: async () => '0.1.3', copyYouTubeUrl: vi.fn().mockResolvedValue(false) };
+    await mountPracticeVideo();
+    fireEvent.click(screen.getByRole('button', { name: 'Скопировать ссылку' }));
+    await waitFor(() => expect(screen.getByText(/не удалось скопировать/i).className).toContain('error'));
+    expect(screen.getByText(/https:\/\/www\.youtube\.com\/watch\?v=dQw4w9WgXcQ/)).toBeTruthy();
+    window.musicTrain = undefined;
+  });
+
+  it('keeps the fallback URL tied to the loaded video if the input is edited', async () => {
+    window.musicTrain = { version: async () => '0.1.3', copyYouTubeUrl: vi.fn().mockResolvedValue(false) };
+    await mountPracticeVideo();
+    fireEvent.change(screen.getByLabelText('ССЫЛКА НА ВИДЕО'), { target: { value: 'https://youtu.be/oHg5SJYRHA0' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Скопировать ссылку' }));
+    await waitFor(() => expect(screen.getByText(/Не удалось скопировать/)).toBeTruthy());
+    const message = screen.getByText(/Не удалось скопировать/).textContent ?? '';
+    expect(message).toContain('dQw4w9WgXcQ');
+    expect(message).not.toContain('oHg5SJYRHA0');
+    window.musicTrain = undefined;
+  });
+
+  it('does not show a delayed copy result after switching videos', async () => {
+    let resolveCopy!: (copied: boolean) => void;
+    const pendingCopy = new Promise<boolean>((resolve) => { resolveCopy = resolve; });
+    const copyYouTubeUrl = vi.fn(() => pendingCopy);
+    window.musicTrain = { version: async () => '0.1.3', copyYouTubeUrl };
+    await mountPracticeVideo();
+    fireEvent.click(screen.getByRole('button', { name: 'Скопировать ссылку' }));
+    fireEvent.change(screen.getByLabelText('ССЫЛКА НА ВИДЕО'), { target: { value: 'https://youtu.be/oHg5SJYRHA0' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Заменить видео' }));
+    await waitFor(() => expect(localStorage.getItem('lastVideoId')).toBe('oHg5SJYRHA0'));
+    expect(copyYouTubeUrl).toHaveBeenCalledOnce();
+    await act(async () => { resolveCopy(false); await pendingCopy; });
+    expect(document.querySelector('.bpm-copy-status')).toBeNull();
+    window.musicTrain = undefined;
+  });
+
   it('shows the remembered video after remount without fetching or starting playback', async () => {
     vi.stubEnv('VITE_ELIGIBILITY_API', 'https://eligibility.example');
     const fetchMock = vi.fn().mockResolvedValue({ ok: true, json: vi.fn().mockResolvedValue({ eligible: true }) });

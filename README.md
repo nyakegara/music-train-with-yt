@@ -34,7 +34,7 @@ The app stores BPM, first beat, metronome volume, playback speed, meter, and loo
 
 ### BPM Finder
 
-The optional BPM Finder link opens the external tool in your browser. Paste the YouTube link there yourself, then enter its result in the app's BPM field. The app does not send your video link to the tool or verify its estimate.
+The optional BPM Finder link opens the external tool in your browser. Click **Скопировать ссылку**, paste it there, then enter the result in the app's BPM field. The site searches video metadata and may return only an estimate; check the tempo by ear. The app does not submit your video link to the tool or verify its estimate.
 
 ### Speed trainer
 
