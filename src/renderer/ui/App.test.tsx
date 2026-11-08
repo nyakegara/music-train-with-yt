@@ -39,8 +39,8 @@ class MockYouTubePlayer {
   isMuted() { return false; }
 }
 
-async function mountPracticeVideo() {
-  localStorage.setItem('practice:dQw4w9WgXcQ', JSON.stringify({ bpm: 100, firstBeat: 0, speed: 0.5, loopA: 10, loopB: 20, metronomeEnabled: false, volume: 0.35 }));
+async function mountPracticeVideo(firstBeat = 0) {
+  localStorage.setItem('practice:dQw4w9WgXcQ', JSON.stringify({ bpm: 100, firstBeat, speed: 0.5, loopA: 10, loopB: 20, metronomeEnabled: false, volume: 0.35 }));
   render(<App />);
   await act(async () => { window.onYouTubeIframeAPIReady?.(); });
   fireEvent.change(screen.getByLabelText('ССЫЛКА НА ВИДЕО'), { target: { value: 'https://youtu.be/dQw4w9WgXcQ' } });
@@ -123,7 +123,7 @@ describe('YouTube player lifecycle', () => {
     const player = MockYouTubePlayer.instances[0];
     act(() => player.options.events.onReady({ target: player }));
     expect(player.setPlaybackRate).toHaveBeenCalledWith(0.75);
-    expect(screen.getByText('92')).toBeTruthy();
+    expect((screen.getByRole('textbox', { name: 'Темп BPM' }) as HTMLInputElement).value).toBe('92');
     expect(player.playVideo).not.toHaveBeenCalled();
   });
 
@@ -312,6 +312,91 @@ describe('YouTube player lifecycle', () => {
     expect(input.value).toBe(url);
   });
 
+  it('commits manual BPM on Enter without clamping partial edits or changing firstBeat', async () => {
+    await mountPracticeVideo(7.25);
+    const input = screen.getByRole('textbox', { name: 'Темп BPM' }) as HTMLInputElement;
+    expect(input.value).toBe('100');
+    fireEvent.change(input, { target: { value: '' } });
+    fireEvent.change(input, { target: { value: '1' } });
+    expect(input.value).toBe('1');
+    expect(JSON.parse(localStorage.getItem('practice:dQw4w9WgXcQ')!).bpm).toBe(100);
+    fireEvent.change(input, { target: { value: '128' } });
+    fireEvent.keyDown(input, { key: 'Enter' });
+    expect(JSON.parse(localStorage.getItem('practice:dQw4w9WgXcQ')!)).toMatchObject({ bpm: 128, firstBeat: 7.25 });
+    expect(input.value).toBe('128');
+  });
+
+  it.each(['40', '240'])('commits manual BPM boundary %s on blur', async (value) => {
+    await mountPracticeVideo();
+    const input = screen.getByRole('textbox', { name: 'Темп BPM' });
+    fireEvent.change(input, { target: { value } });
+    fireEvent.blur(input);
+    expect(JSON.parse(localStorage.getItem('practice:dQw4w9WgXcQ')!).bpm).toBe(Number(value));
+  });
+
+  it.each(['', '128.5', '39', '241', 'abc', '1e2'])(
+    'rejects invalid manual BPM %j with an associated accessible error', async (value) => {
+      await mountPracticeVideo(7.25);
+      const input = screen.getByRole('textbox', { name: 'Темп BPM' }) as HTMLInputElement;
+      fireEvent.change(input, { target: { value } });
+      fireEvent.keyDown(input, { key: 'Enter' });
+      expect(JSON.parse(localStorage.getItem('practice:dQw4w9WgXcQ')!)).toMatchObject({ bpm: 100, firstBeat: 7.25 });
+      const alert = screen.getByRole('alert');
+      expect(alert.textContent).toMatch(/40.*240/);
+      expect(input.getAttribute('aria-describedby')).toBe(alert.id);
+      expect(input.getAttribute('aria-invalid')).toBe('true');
+      expect(input.value).toBe('100');
+    },
+  );
+
+  it('rejects invalid manual BPM on blur and clears the error after a valid edit', async () => {
+    await mountPracticeVideo();
+    const input = screen.getByRole('textbox', { name: 'Темп BPM' });
+    fireEvent.change(input, { target: { value: '39' } });
+    fireEvent.blur(input);
+    expect(screen.getByRole('alert')).toBeTruthy();
+    expect(JSON.parse(localStorage.getItem('practice:dQw4w9WgXcQ')!).bpm).toBe(100);
+    fireEvent.change(input, { target: { value: '128' } });
+    fireEvent.blur(input);
+    expect(screen.queryByRole('alert')).toBeNull();
+    expect(JSON.parse(localStorage.getItem('practice:dQw4w9WgXcQ')!).bpm).toBe(128);
+  });
+
+  it('syncs manual BPM draft after step buttons and Tap Tempo', async () => {
+    await mountPracticeVideo();
+    const input = screen.getByRole('textbox', { name: 'Темп BPM' }) as HTMLInputElement;
+    fireEvent.change(input, { target: { value: '135' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Увеличить BPM' }));
+    expect(input.value).toBe('101');
+    fireEvent.click(screen.getByRole('button', { name: 'Уменьшить BPM' }));
+    expect(input.value).toBe('100');
+    const now = vi.spyOn(Date, 'now');
+    try {
+      now.mockReturnValue(10000);
+      fireEvent.click(screen.getByRole('button', { name: 'TAP' }));
+      now.mockReturnValue(10500);
+      fireEvent.click(screen.getByRole('button', { name: 'TAP' }));
+      expect(input.value).toBe('120');
+      expect(JSON.parse(localStorage.getItem('practice:dQw4w9WgXcQ')!).bpm).toBe(120);
+    } finally { now.mockRestore(); }
+  });
+
+  it.each([92, 100])('syncs manual BPM to another video saved at %s and clears the prior error', async (bpm) => {
+    await mountPracticeVideo();
+    localStorage.setItem('practice:oHg5SJYRHA0', JSON.stringify({ bpm, firstBeat: 3.5 }));
+    const input = screen.getByRole('textbox', { name: 'Темп BPM' }) as HTMLInputElement;
+    fireEvent.change(input, { target: { value: '39' } });
+    fireEvent.keyDown(input, { key: 'Enter' });
+    expect(screen.getByRole('alert')).toBeTruthy();
+    fireEvent.change(input, { target: { value: '135' } });
+    fireEvent.change(screen.getByLabelText('ССЫЛКА НА ВИДЕО'), { target: { value: 'https://youtu.be/oHg5SJYRHA0' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Заменить видео' }));
+    expect(input.value).toBe(String(bpm));
+    expect(screen.queryByRole('alert')).toBeNull();
+    expect(JSON.parse(localStorage.getItem('practice:dQw4w9WgXcQ')!).bpm).toBe(100);
+    expect(JSON.parse(localStorage.getItem('practice:oHg5SJYRHA0')!)).toMatchObject({ bpm, firstBeat: 3.5 });
+  });
+
   it('resets Tap Tempo samples when a different video loads', async () => {
     vi.useFakeTimers();
     const baseTime = new Date('2026-11-07T12:00:00Z');
@@ -354,6 +439,7 @@ describe('YouTube player lifecycle', () => {
     fireEvent.change(screen.getByLabelText('Выбрать аудиофайл для определения BPM'), { target: { files: [file] } });
 
     await waitFor(() => expect(JSON.parse(localStorage.getItem('practice:dQw4w9WgXcQ')!).bpm).toBe(123));
+    expect((screen.getByRole('textbox', { name: 'Темп BPM' }) as HTMLInputElement).value).toBe('123');
     expect(estimateBpmFromFile).toHaveBeenCalledWith(file);
     expect(JSON.parse(localStorage.getItem('practice:dQw4w9WgXcQ')!).firstBeat).toBe(0);
     expect(localStorage.getItem('local-audio')).toBeNull();
