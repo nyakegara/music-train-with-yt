@@ -1,6 +1,7 @@
 node_modules/
 dist/
 release/
+release-*/
 .env
 .dev.vars
 .wrangler/
