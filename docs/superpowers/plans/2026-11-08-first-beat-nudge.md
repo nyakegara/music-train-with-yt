@@ -49,4 +49,4 @@
 - [x] **Step 7: Implement the accessible controls and precise timestamp** in `App.tsx`; keep the existing “mark current playhead” action and style a compact control group in `styles.css`.
 - [x] **Step 8: Run the focused UI tests and full suite.** Expected: all existing and new tests pass.
 - [x] **Step 9: Run `npm run build` and `git diff --check`.** Expected: production build succeeds and the diff is clean.
-- [ ] **Step 10: Commit** as `feat: fine tune first beat alignment`.
+- [x] **Step 10: Commit** as `feat: fine tune first beat alignment`.
