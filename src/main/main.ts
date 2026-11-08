@@ -1,17 +1,13 @@
 import { app, BrowserWindow, ipcMain, session, shell } from 'electron';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { isAllowedExternalUrl } from './externalLinks.js';
 const here = path.dirname(fileURLToPath(import.meta.url));
 const packagedYouTubeReferer = 'https://com.musictrain.desktop/';
 function createWindow() {
   const window = new BrowserWindow({ width:1420,height:900,minWidth:900,minHeight:700,backgroundColor:'#10100f',webPreferences:{contextIsolation:true,nodeIntegration:false,sandbox:true} });
   window.webContents.setWindowOpenHandler(({ url }) => {
-    try {
-      const destination = new URL(url);
-      if (destination.protocol === 'https:' && ['youtube.com', 'www.youtube.com', 'youtu.be'].includes(destination.hostname)) {
-        void shell.openExternal(url);
-      }
-    } catch { /* Ignore malformed or unsupported destinations. */ }
+    if (isAllowedExternalUrl(url)) void shell.openExternal(url);
     return { action: 'deny' };
   });
   if (app.isPackaged) void window.loadFile(path.join(here,'../index.html'));

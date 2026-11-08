@@ -89,6 +89,17 @@ describe('YouTube player lifecycle', () => {
   });
   afterEach(() => { cleanup(); vi.useRealTimers(); vi.unstubAllGlobals(); vi.unstubAllEnvs(); });
 
+  it('offers the fixed BPM Finder handoff after a video is loaded without sharing its ID', async () => {
+    await mountPracticeVideo();
+    const link = screen.getByRole('link', { name: 'Открыть BPM Finder' }) as HTMLAnchorElement;
+    expect(link.href).toBe('https://youtubetoolkit.com/tools/bpm-finder');
+    expect(link.target).toBe('_blank');
+    expect(link.rel).toContain('noreferrer');
+    expect(link.href).not.toContain('dQw4w9WgXcQ');
+    expect(screen.getByText(/сервис ищет BPM в метаданных видео/)).toBeTruthy();
+    expect(screen.getByText(/внеси его вручную/)).toBeTruthy();
+  });
+
   it('shows the remembered video after remount without fetching or starting playback', async () => {
     vi.stubEnv('VITE_ELIGIBILITY_API', 'https://eligibility.example');
     const fetchMock = vi.fn().mockResolvedValue({ ok: true, json: vi.fn().mockResolvedValue({ eligible: true }) });
