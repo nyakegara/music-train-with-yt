@@ -1,5 +1,5 @@
 import {afterEach,beforeEach,describe,expect,it,vi} from 'vitest';
-import {parseYouTubeId,shouldLoop,nextBeatTime,nextBeatSchedule,beatIndexAt,loopStartAt,loopEndAt,eligibilityServiceMissing,eligibilityErrorMessage,loadSettings,saveSettings,loadLastVideoId,saveLastVideoId,clearLastVideoId,DEFAULT_SETTINGS,sanitizeSettings,youtubePlayerOrigin,youtubePlayerErrorMessage,isDownbeat,clampPosition,videoTimeAtPointer,loadPracticeSegments,savePracticeSegments} from './youtube';
+import {parseYouTubeId,shouldLoop,nextBeatTime,nextBeatSchedule,beatIndexAt,loopStartAt,loopEndAt,eligibilityServiceMissing,eligibilityErrorMessage,loadSettings,saveSettings,loadLastVideoId,saveLastVideoId,clearLastVideoId,DEFAULT_SETTINGS,sanitizeSettings,youtubePlayerOrigin,youtubePlayerErrorMessage,isDownbeat,clampPosition,videoTimeAtPointer,loadPracticeSegments,savePracticeSegments,adjustFirstBeat} from './youtube';
 describe('YouTube URL parser',()=>{it.each([
  ['https://www.youtube.com/watch?v=dQw4w9WgXcQ&t=18s','dQw4w9WgXcQ'],
  ['https://youtu.be/dQw4w9WgXcQ?si=abc','dQw4w9WgXcQ'],
@@ -15,6 +15,16 @@ describe('stored practice settings',()=>{
  it('saves settings independently per video and restores them',()=>{const settings={...DEFAULT_SETTINGS,bpm:132,speed:0.75};expect(saveSettings('dQw4w9WgXcQ',settings)).toBe(true);expect(loadSettings('dQw4w9WgXcQ')).toEqual(settings);expect(loadSettings('M7lc1UVf-VE')).toEqual(DEFAULT_SETTINGS);});
  it('restores the metronome off so it always needs an explicit start',()=>{const settings={...DEFAULT_SETTINGS,metronomeEnabled:true};saveSettings('dQw4w9WgXcQ',settings);expect(loadSettings('dQw4w9WgXcQ').metronomeEnabled).toBe(false);});
  it('falls back to defaults for broken JSON and sanitizes old or invalid values',()=>{localStorage.setItem('practice:dQw4w9WgXcQ','{');expect(loadSettings('dQw4w9WgXcQ')).toEqual(DEFAULT_SETTINGS);expect(sanitizeSettings({bpm:900,firstBeat:-3,speed:0,loopA:8,loopB:2,volume:4})).toEqual({...DEFAULT_SETTINGS,bpm:240,volume:1});});
+});
+describe('first-beat fine adjustment',()=>{
+ it('moves the first beat by 10 milliseconds in either direction',()=>{
+  expect(adjustFirstBeat(2,0.01,180)).toBe(2.01);
+  expect(adjustFirstBeat(2.01,-0.01,180)).toBe(2);
+ });
+ it('clamps nudges at the start and end of the video',()=>{
+  expect(adjustFirstBeat(0,-0.01,180)).toBe(0);
+  expect(adjustFirstBeat(180,0.01,180)).toBe(180);
+ });
 });
 describe('saved practice segments',()=>{
  beforeEach(()=>localStorage.clear());

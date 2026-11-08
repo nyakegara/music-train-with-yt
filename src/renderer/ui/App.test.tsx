@@ -630,6 +630,53 @@ describe('YouTube player lifecycle', () => {
     expect(JSON.parse(localStorage.getItem('practice:dQw4w9WgXcQ')!).volume).toBe(0.7);
   });
 
+  it('nudges first-beat alignment by 10 milliseconds without changing other saved settings', async () => {
+    const settings = { bpm: 128, timeSignature: 3, firstBeat: 2, speed: 0.75, loopA: 12, loopB: 28, metronomeEnabled: false, volume: 0.6 };
+    const otherVideoSettings = { bpm: 91, timeSignature: 4, firstBeat: 4, speed: 1, loopA: null, loopB: null, metronomeEnabled: false, volume: 0.35 };
+    localStorage.setItem('practice:dQw4w9WgXcQ', JSON.stringify(settings));
+    localStorage.setItem('practice:M7lc1UVf-VE', JSON.stringify(otherVideoSettings));
+    render(<App />);
+    await act(async () => { window.onYouTubeIframeAPIReady?.(); });
+    fireEvent.change(screen.getByLabelText('ССЫЛКА НА ВИДЕО'), { target: { value: 'https://youtu.be/dQw4w9WgXcQ' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Загрузить видео' }));
+    const player = MockYouTubePlayer.instances[0];
+    act(() => player.options.events.onReady({ target: player }));
+
+    const laterNudge = screen.getByRole('button', { name: 'Сдвинуть первую долю на 10 мс позже' });
+    expect(screen.getByText('00:02.000')).toBeTruthy();
+    fireEvent.click(laterNudge);
+
+    expect(screen.getByText('00:02.010')).toBeTruthy();
+    expect(JSON.parse(localStorage.getItem('practice:dQw4w9WgXcQ')!)).toEqual({ ...settings, firstBeat: 2.01 });
+    expect(JSON.parse(localStorage.getItem('practice:M7lc1UVf-VE')!)).toEqual(otherVideoSettings);
+
+    fireEvent.click(screen.getByRole('button', { name: 'Сдвинуть первую долю на 10 мс раньше' }));
+    expect(screen.getByText('00:02.000')).toBeTruthy();
+    expect(JSON.parse(localStorage.getItem('practice:dQw4w9WgXcQ')!)).toEqual(settings);
+  });
+
+  it.each([
+    [0, 'Сдвинуть первую долю на 10 мс раньше'],
+    [180, 'Сдвинуть первую долю на 10 мс позже'],
+  ])('disables the out-of-range first-beat adjustment at %s seconds', async (firstBeat, label) => {
+    await mountPracticeVideo(firstBeat);
+    expect(screen.getByRole('button', { name: label }).hasAttribute('disabled')).toBe(true);
+  });
+
+  it('disables a forward nudge when the duration has no later millisecond position', async () => {
+    await mountPracticeVideo(180);
+    const player = MockYouTubePlayer.instances[0];
+    vi.spyOn(player, 'getDuration').mockReturnValue(180.0004);
+    act(() => player.options.events.onReady({ target: player }));
+    expect(screen.getByRole('button', { name: 'Сдвинуть первую долю на 10 мс позже' }).hasAttribute('disabled')).toBe(true);
+  });
+
+  it('keeps first-beat adjustment disabled before player readiness', () => {
+    render(<App />);
+    expect(screen.getByRole('button', { name: 'Сдвинуть первую долю на 10 мс раньше' }).hasAttribute('disabled')).toBe(true);
+    expect(screen.getByRole('button', { name: 'Сдвинуть первую долю на 10 мс позже' }).hasAttribute('disabled')).toBe(true);
+  });
+
   it('saves and restores the selected meter per video', async () => {
     render(<App />);
     await act(async () => { window.onYouTubeIframeAPIReady?.(); });

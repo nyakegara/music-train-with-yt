@@ -105,3 +105,5 @@
 .tempo-control .bpm-entry:focus-visible{outline:2px solid var(--amber);outline-offset:2px}
 .tempo-control .bpm-entry[aria-invalid="true"]{border-color:#f1a19b}
 .bpm-entry-error{margin:0 0 8px;color:#f1a19b;font-size:10px;line-height:1.45}
+
+.first-beat-row{display:flex;align-items:center;gap:6px;border-top:1px solid #2b2b26}.first-beat-row .first-beat{height:28px;width:auto;flex:1;min-width:0;border-top:0;font-size:10px}.first-beat-adjust{display:flex;align-items:center;gap:4px;flex:none}.first-beat-adjust button{min-width:52px;height:26px;padding:0 5px;border:1px solid #353530;border-radius:4px;background:#1d1d1b;color:#c1c0b8;font:10px var(--mono);white-space:nowrap;cursor:pointer}.first-beat-adjust button:hover:not(:disabled){border-color:#827048;color:var(--amber)}.first-beat-adjust button:disabled{opacity:.42;cursor:not-allowed}.first-beat-adjust button:focus-visible{outline:2px solid var(--amber);outline-offset:2px}
