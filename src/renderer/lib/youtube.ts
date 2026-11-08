@@ -296,6 +296,14 @@ export function clampPosition(position: number, duration: number): number {
   return Math.min(duration, Math.max(0, position));
 }
 
+export function adjustFirstBeat(firstBeat: number, delta: number, duration: number): number {
+  if (!Number.isFinite(duration) || duration <= 0 || !Number.isFinite(delta)) return Number.isFinite(firstBeat) ? Math.max(0, firstBeat) : 0;
+  const maximum = Math.floor(duration * 1000) / 1000;
+  const current = Number.isFinite(firstBeat) ? firstBeat : 0;
+  const adjusted = Math.round((current + delta) * 1000) / 1000;
+  return Math.min(maximum, Math.max(0, adjusted));
+}
+
 export function videoTimeAtPointer(clientX: number, trackLeft: number, trackWidth: number, duration: number): number | null {
   if (!Number.isFinite(clientX) || !Number.isFinite(trackLeft) || !Number.isFinite(trackWidth) || !Number.isFinite(duration) || trackWidth <= 0 || duration <= 0) return null;
   return clampPosition(((clientX - trackLeft) / trackWidth) * duration, duration);

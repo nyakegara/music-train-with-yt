@@ -1,17 +1,13 @@
-import { app, BrowserWindow, ipcMain, session, shell } from 'electron';
+import { app, BrowserWindow, clipboard, ipcMain, session, shell } from 'electron';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { isAllowedExternalUrl, youtubeWatchUrl } from './externalLinks.js';
 const here = path.dirname(fileURLToPath(import.meta.url));
 const packagedYouTubeReferer = 'https://com.musictrain.desktop/';
 function createWindow() {
   const window = new BrowserWindow({ width:1420,height:900,minWidth:900,minHeight:700,backgroundColor:'#10100f',webPreferences:{contextIsolation:true,nodeIntegration:false,sandbox:true} });
   window.webContents.setWindowOpenHandler(({ url }) => {
-    try {
-      const destination = new URL(url);
-      if (destination.protocol === 'https:' && ['youtube.com', 'www.youtube.com', 'youtu.be'].includes(destination.hostname)) {
-        void shell.openExternal(url);
-      }
-    } catch { /* Ignore malformed or unsupported destinations. */ }
+    if (isAllowedExternalUrl(url)) void shell.openExternal(url);
     return { action: 'deny' };
   });
   if (app.isPackaged) void window.loadFile(path.join(here,'../index.html'));
@@ -20,6 +16,13 @@ function createWindow() {
 app.whenReady().then(()=>{
   app.setAppUserModelId('com.musictrain.desktop');
   ipcMain.handle('app:version',()=>app.getVersion());
+  ipcMain.handle('app:copy-youtube-url',(_event,videoId:unknown)=>{
+    if(typeof videoId!=='string')return false;
+    const url=youtubeWatchUrl(videoId);
+    if(!url)return false;
+    clipboard.writeText(url);
+    return true;
+  });
   const youtubeReferer = app.isPackaged ? packagedYouTubeReferer : `${process.env.VITE_DEV_SERVER_URL ?? 'http://127.0.0.1:5173'}/`;
   session.defaultSession.webRequest.onBeforeSendHeaders({urls:['https://www.youtube.com/*','https://youtube.com/*']},(details,callback)=>{
     details.requestHeaders.Referer=youtubeReferer;

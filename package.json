@@ -1,6 +1,6 @@
 {
   "name": "music-train-with-yt",
-  "version": "0.1.2",
+  "version": "0.1.3",
   "description": "Windows desktop practice tool for YouTube videos. Paste a video link, slow it down, loop a section, and practice with a synchronized metronome.",
   "main": "dist/main/main.js",
   "scripts": {

@@ -1,4 +1,4 @@
-import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { act, cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
@@ -39,8 +39,8 @@ class MockYouTubePlayer {
   isMuted() { return false; }
 }
 
-async function mountPracticeVideo() {
-  localStorage.setItem('practice:dQw4w9WgXcQ', JSON.stringify({ bpm: 100, firstBeat: 0, speed: 0.5, loopA: 10, loopB: 20, metronomeEnabled: false, volume: 0.35 }));
+async function mountPracticeVideo(firstBeat = 0) {
+  localStorage.setItem('practice:dQw4w9WgXcQ', JSON.stringify({ bpm: 100, firstBeat, speed: 0.5, loopA: 10, loopB: 20, metronomeEnabled: false, volume: 0.35 }));
   render(<App />);
   await act(async () => { window.onYouTubeIframeAPIReady?.(); });
   fireEvent.change(screen.getByLabelText('ССЫЛКА НА ВИДЕО'), { target: { value: 'https://youtu.be/dQw4w9WgXcQ' } });
@@ -89,6 +89,65 @@ describe('YouTube player lifecycle', () => {
   });
   afterEach(() => { cleanup(); vi.useRealTimers(); vi.unstubAllGlobals(); vi.unstubAllEnvs(); });
 
+  it('offers the fixed BPM Finder handoff after a video is loaded without sharing its ID', async () => {
+    await mountPracticeVideo();
+    const link = screen.getByRole('link', { name: 'Открыть BPM Finder' }) as HTMLAnchorElement;
+    expect(link.href).toBe('https://youtubetoolkit.com/tools/bpm-finder');
+    expect(link.target).toBe('_blank');
+    expect(link.rel).toContain('noreferrer');
+    expect(link.href).not.toContain('dQw4w9WgXcQ');
+    expect(screen.getByText(/сервис ищет BPM в метаданных видео/)).toBeTruthy();
+    expect(screen.getByText(/внеси его вручную/)).toBeTruthy();
+  });
+
+  it('copies only the canonical YouTube URL after the user clicks the button', async () => {
+    const copyYouTubeUrl = vi.fn().mockResolvedValue(true);
+    window.musicTrain = { version: async () => '0.1.3', copyYouTubeUrl };
+    await mountPracticeVideo();
+    fireEvent.click(screen.getByRole('button', { name: 'Скопировать ссылку' }));
+    await waitFor(() => expect(screen.getByText('Ссылка скопирована. Вставь её в BPM Finder.').className).toContain('success'));
+    expect(copyYouTubeUrl).toHaveBeenCalledWith('dQw4w9WgXcQ');
+    expect(screen.getByRole('link', { name: 'Открыть BPM Finder' }).getAttribute('href')).toBe('https://youtubetoolkit.com/tools/bpm-finder');
+    window.musicTrain = undefined;
+  });
+
+  it('explains how to copy the link manually if clipboard access fails', async () => {
+    window.musicTrain = { version: async () => '0.1.3', copyYouTubeUrl: vi.fn().mockResolvedValue(false) };
+    await mountPracticeVideo();
+    fireEvent.click(screen.getByRole('button', { name: 'Скопировать ссылку' }));
+    await waitFor(() => expect(screen.getByText(/не удалось скопировать/i).className).toContain('error'));
+    expect(screen.getByText(/https:\/\/www\.youtube\.com\/watch\?v=dQw4w9WgXcQ/)).toBeTruthy();
+    window.musicTrain = undefined;
+  });
+
+  it('keeps the fallback URL tied to the loaded video if the input is edited', async () => {
+    window.musicTrain = { version: async () => '0.1.3', copyYouTubeUrl: vi.fn().mockResolvedValue(false) };
+    await mountPracticeVideo();
+    fireEvent.change(screen.getByLabelText('ССЫЛКА НА ВИДЕО'), { target: { value: 'https://youtu.be/oHg5SJYRHA0' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Скопировать ссылку' }));
+    await waitFor(() => expect(screen.getByText(/Не удалось скопировать/)).toBeTruthy());
+    const message = screen.getByText(/Не удалось скопировать/).textContent ?? '';
+    expect(message).toContain('dQw4w9WgXcQ');
+    expect(message).not.toContain('oHg5SJYRHA0');
+    window.musicTrain = undefined;
+  });
+
+  it('does not show a delayed copy result after switching videos', async () => {
+    let resolveCopy!: (copied: boolean) => void;
+    const pendingCopy = new Promise<boolean>((resolve) => { resolveCopy = resolve; });
+    const copyYouTubeUrl = vi.fn(() => pendingCopy);
+    window.musicTrain = { version: async () => '0.1.3', copyYouTubeUrl };
+    await mountPracticeVideo();
+    fireEvent.click(screen.getByRole('button', { name: 'Скопировать ссылку' }));
+    fireEvent.change(screen.getByLabelText('ССЫЛКА НА ВИДЕО'), { target: { value: 'https://youtu.be/oHg5SJYRHA0' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Заменить видео' }));
+    await waitFor(() => expect(localStorage.getItem('lastVideoId')).toBe('oHg5SJYRHA0'));
+    expect(copyYouTubeUrl).toHaveBeenCalledOnce();
+    await act(async () => { resolveCopy(false); await pendingCopy; });
+    expect(document.querySelector('.bpm-copy-status')).toBeNull();
+    window.musicTrain = undefined;
+  });
+
   it('shows the remembered video after remount without fetching or starting playback', async () => {
     vi.stubEnv('VITE_ELIGIBILITY_API', 'https://eligibility.example');
     const fetchMock = vi.fn().mockResolvedValue({ ok: true, json: vi.fn().mockResolvedValue({ eligible: true }) });
@@ -123,7 +182,7 @@ describe('YouTube player lifecycle', () => {
     const player = MockYouTubePlayer.instances[0];
     act(() => player.options.events.onReady({ target: player }));
     expect(player.setPlaybackRate).toHaveBeenCalledWith(0.75);
-    expect(screen.getByText('92')).toBeTruthy();
+    expect((screen.getByRole('textbox', { name: 'Темп BPM' }) as HTMLInputElement).value).toBe('92');
     expect(player.playVideo).not.toHaveBeenCalled();
   });
 
@@ -312,6 +371,91 @@ describe('YouTube player lifecycle', () => {
     expect(input.value).toBe(url);
   });
 
+  it('commits manual BPM on Enter without clamping partial edits or changing firstBeat', async () => {
+    await mountPracticeVideo(7.25);
+    const input = screen.getByRole('textbox', { name: 'Темп BPM' }) as HTMLInputElement;
+    expect(input.value).toBe('100');
+    fireEvent.change(input, { target: { value: '' } });
+    fireEvent.change(input, { target: { value: '1' } });
+    expect(input.value).toBe('1');
+    expect(JSON.parse(localStorage.getItem('practice:dQw4w9WgXcQ')!).bpm).toBe(100);
+    fireEvent.change(input, { target: { value: '128' } });
+    fireEvent.keyDown(input, { key: 'Enter' });
+    expect(JSON.parse(localStorage.getItem('practice:dQw4w9WgXcQ')!)).toMatchObject({ bpm: 128, firstBeat: 7.25 });
+    expect(input.value).toBe('128');
+  });
+
+  it.each(['40', '240'])('commits manual BPM boundary %s on blur', async (value) => {
+    await mountPracticeVideo();
+    const input = screen.getByRole('textbox', { name: 'Темп BPM' });
+    fireEvent.change(input, { target: { value } });
+    fireEvent.blur(input);
+    expect(JSON.parse(localStorage.getItem('practice:dQw4w9WgXcQ')!).bpm).toBe(Number(value));
+  });
+
+  it.each(['', '128.5', '39', '241', 'abc', '1e2'])(
+    'rejects invalid manual BPM %j with an associated accessible error', async (value) => {
+      await mountPracticeVideo(7.25);
+      const input = screen.getByRole('textbox', { name: 'Темп BPM' }) as HTMLInputElement;
+      fireEvent.change(input, { target: { value } });
+      fireEvent.keyDown(input, { key: 'Enter' });
+      expect(JSON.parse(localStorage.getItem('practice:dQw4w9WgXcQ')!)).toMatchObject({ bpm: 100, firstBeat: 7.25 });
+      const alert = screen.getByRole('alert');
+      expect(alert.textContent).toMatch(/40.*240/);
+      expect(input.getAttribute('aria-describedby')).toBe(alert.id);
+      expect(input.getAttribute('aria-invalid')).toBe('true');
+      expect(input.value).toBe('100');
+    },
+  );
+
+  it('rejects invalid manual BPM on blur and clears the error after a valid edit', async () => {
+    await mountPracticeVideo();
+    const input = screen.getByRole('textbox', { name: 'Темп BPM' });
+    fireEvent.change(input, { target: { value: '39' } });
+    fireEvent.blur(input);
+    expect(screen.getByRole('alert')).toBeTruthy();
+    expect(JSON.parse(localStorage.getItem('practice:dQw4w9WgXcQ')!).bpm).toBe(100);
+    fireEvent.change(input, { target: { value: '128' } });
+    fireEvent.blur(input);
+    expect(screen.queryByRole('alert')).toBeNull();
+    expect(JSON.parse(localStorage.getItem('practice:dQw4w9WgXcQ')!).bpm).toBe(128);
+  });
+
+  it('syncs manual BPM draft after step buttons and Tap Tempo', async () => {
+    await mountPracticeVideo();
+    const input = screen.getByRole('textbox', { name: 'Темп BPM' }) as HTMLInputElement;
+    fireEvent.change(input, { target: { value: '135' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Увеличить BPM' }));
+    expect(input.value).toBe('101');
+    fireEvent.click(screen.getByRole('button', { name: 'Уменьшить BPM' }));
+    expect(input.value).toBe('100');
+    const now = vi.spyOn(Date, 'now');
+    try {
+      now.mockReturnValue(10000);
+      fireEvent.click(screen.getByRole('button', { name: 'TAP' }));
+      now.mockReturnValue(10500);
+      fireEvent.click(screen.getByRole('button', { name: 'TAP' }));
+      expect(input.value).toBe('120');
+      expect(JSON.parse(localStorage.getItem('practice:dQw4w9WgXcQ')!).bpm).toBe(120);
+    } finally { now.mockRestore(); }
+  });
+
+  it.each([92, 100])('syncs manual BPM to another video saved at %s and clears the prior error', async (bpm) => {
+    await mountPracticeVideo();
+    localStorage.setItem('practice:oHg5SJYRHA0', JSON.stringify({ bpm, firstBeat: 3.5 }));
+    const input = screen.getByRole('textbox', { name: 'Темп BPM' }) as HTMLInputElement;
+    fireEvent.change(input, { target: { value: '39' } });
+    fireEvent.keyDown(input, { key: 'Enter' });
+    expect(screen.getByRole('alert')).toBeTruthy();
+    fireEvent.change(input, { target: { value: '135' } });
+    fireEvent.change(screen.getByLabelText('ССЫЛКА НА ВИДЕО'), { target: { value: 'https://youtu.be/oHg5SJYRHA0' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Заменить видео' }));
+    expect(input.value).toBe(String(bpm));
+    expect(screen.queryByRole('alert')).toBeNull();
+    expect(JSON.parse(localStorage.getItem('practice:dQw4w9WgXcQ')!).bpm).toBe(100);
+    expect(JSON.parse(localStorage.getItem('practice:oHg5SJYRHA0')!)).toMatchObject({ bpm, firstBeat: 3.5 });
+  });
+
   it('resets Tap Tempo samples when a different video loads', async () => {
     vi.useFakeTimers();
     const baseTime = new Date('2026-11-07T12:00:00Z');
@@ -354,10 +498,30 @@ describe('YouTube player lifecycle', () => {
     fireEvent.change(screen.getByLabelText('Выбрать аудиофайл для определения BPM'), { target: { files: [file] } });
 
     await waitFor(() => expect(JSON.parse(localStorage.getItem('practice:dQw4w9WgXcQ')!).bpm).toBe(123));
+    expect((screen.getByRole('textbox', { name: 'Темп BPM' }) as HTMLInputElement).value).toBe('123');
     expect(estimateBpmFromFile).toHaveBeenCalledWith(file);
     expect(JSON.parse(localStorage.getItem('practice:dQw4w9WgXcQ')!).firstBeat).toBe(0);
     expect(localStorage.getItem('local-audio')).toBeNull();
     expect(player.playVideo).not.toHaveBeenCalled();
+  });
+
+  it.each(['draft', 'error'])('resets manual BPM %s when applying a candidate equal to the saved BPM', async (state) => {
+    await mountPracticeVideo(7.25);
+    estimateBpmFromFile.mockResolvedValue({ bpm: 100, confidence: 0.34, alternatives: [50] });
+    const file = new File(['local audio'], 'track.mp3', { type: 'audio/mpeg' });
+    fireEvent.change(screen.getByLabelText('Выбрать аудиофайл для определения BPM'), { target: { files: [file] } });
+    await screen.findByRole('combobox', { name: 'Подтвердить BPM' });
+    const input = screen.getByRole('textbox', { name: 'Темп BPM' }) as HTMLInputElement;
+    fireEvent.change(input, { target: { value: state === 'draft' ? '135' : '39' } });
+    if (state === 'error') {
+      fireEvent.keyDown(input, { key: 'Enter' });
+      expect(screen.getByRole('alert')).toBeTruthy();
+    }
+    fireEvent.click(screen.getByRole('button', { name: 'Применить BPM' }));
+    expect(input.value).toBe('100');
+    expect(input.getAttribute('aria-invalid')).toBe('false');
+    expect(screen.queryByRole('alert')).toBeNull();
+    expect(JSON.parse(localStorage.getItem('practice:dQw4w9WgXcQ')!)).toMatchObject({ bpm: 100, firstBeat: 7.25 });
   });
 
   it('asks before applying an ambiguous half-time candidate', async () => {
@@ -523,6 +687,66 @@ describe('YouTube player lifecycle', () => {
     await waitFor(() => expect(MockYouTubePlayer.instances).toHaveLength(1));
     fireEvent.change(screen.getByRole('slider', { name: 'Громкость метронома' }), { target: { value: '70' } });
     expect(JSON.parse(localStorage.getItem('practice:dQw4w9WgXcQ')!).volume).toBe(0.7);
+  });
+
+  it('nudges first-beat alignment by 10 milliseconds without changing other saved settings', async () => {
+    const settings = { bpm: 128, timeSignature: 3, firstBeat: 2, speed: 0.75, loopA: 12, loopB: 28, metronomeEnabled: false, volume: 0.6 };
+    const otherVideoSettings = { bpm: 91, timeSignature: 4, firstBeat: 4, speed: 1, loopA: null, loopB: null, metronomeEnabled: false, volume: 0.35 };
+    localStorage.setItem('practice:dQw4w9WgXcQ', JSON.stringify(settings));
+    localStorage.setItem('practice:M7lc1UVf-VE', JSON.stringify(otherVideoSettings));
+    render(<App />);
+    await act(async () => { window.onYouTubeIframeAPIReady?.(); });
+    fireEvent.change(screen.getByLabelText('ССЫЛКА НА ВИДЕО'), { target: { value: 'https://youtu.be/dQw4w9WgXcQ' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Загрузить видео' }));
+    const player = MockYouTubePlayer.instances[0];
+    act(() => player.options.events.onReady({ target: player }));
+
+    const laterNudge = screen.getByRole('button', { name: 'Сдвинуть первую долю на 10 мс позже' });
+    expect(screen.getByText('00:02.000')).toBeTruthy();
+    fireEvent.click(laterNudge);
+
+    expect(screen.getByText('00:02.010')).toBeTruthy();
+    expect(JSON.parse(localStorage.getItem('practice:dQw4w9WgXcQ')!)).toEqual({ ...settings, firstBeat: 2.01 });
+    expect(JSON.parse(localStorage.getItem('practice:M7lc1UVf-VE')!)).toEqual(otherVideoSettings);
+
+    fireEvent.click(screen.getByRole('button', { name: 'Сдвинуть первую долю на 10 мс раньше' }));
+    expect(screen.getByText('00:02.000')).toBeTruthy();
+    expect(JSON.parse(localStorage.getItem('practice:dQw4w9WgXcQ')!)).toEqual(settings);
+  });
+
+  it.each([
+    [0, 'Сдвинуть первую долю на 10 мс раньше'],
+    [180, 'Сдвинуть первую долю на 10 мс позже'],
+  ])('disables the out-of-range first-beat adjustment at %s seconds', async (firstBeat, label) => {
+    await mountPracticeVideo(firstBeat);
+    expect(screen.getByRole('button', { name: label }).hasAttribute('disabled')).toBe(true);
+  });
+
+  it('disables a forward nudge when the duration has no later millisecond position', async () => {
+    await mountPracticeVideo(180);
+    const player = MockYouTubePlayer.instances[0];
+    vi.spyOn(player, 'getDuration').mockReturnValue(180.0004);
+    act(() => player.options.events.onReady({ target: player }));
+    expect(screen.getByRole('button', { name: 'Сдвинуть первую долю на 10 мс позже' }).hasAttribute('disabled')).toBe(true);
+  });
+
+  it('disables a forward nudge when the marked first beat is the fractional video endpoint', async () => {
+    const videoEnd = 180.0004;
+    localStorage.setItem('practice:dQw4w9WgXcQ', JSON.stringify({ bpm: 100, firstBeat: videoEnd, speed: 0.5, loopA: 10, loopB: 20, metronomeEnabled: false, volume: 0.35 }));
+    render(<App />);
+    await act(async () => { window.onYouTubeIframeAPIReady?.(); });
+    fireEvent.change(screen.getByLabelText('ССЫЛКА НА ВИДЕО'), { target: { value: 'https://youtu.be/dQw4w9WgXcQ' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Загрузить видео' }));
+    const player = MockYouTubePlayer.instances[0];
+    vi.spyOn(player, 'getDuration').mockReturnValue(videoEnd);
+    act(() => player.options.events.onReady({ target: player }));
+    expect(screen.getByRole('button', { name: 'Сдвинуть первую долю на 10 мс позже' }).hasAttribute('disabled')).toBe(true);
+  });
+
+  it('keeps first-beat adjustment disabled before player readiness', () => {
+    render(<App />);
+    expect(screen.getByRole('button', { name: 'Сдвинуть первую долю на 10 мс раньше' }).hasAttribute('disabled')).toBe(true);
+    expect(screen.getByRole('button', { name: 'Сдвинуть первую долю на 10 мс позже' }).hasAttribute('disabled')).toBe(true);
   });
 
   it('saves and restores the selected meter per video', async () => {
@@ -834,6 +1058,318 @@ describe('YouTube player lifecycle', () => {
 
     expect(player.seekTo).toHaveBeenLastCalledWith(19.9, true);
     fireEvent.pointerUp(handleA, { pointerId: 10, clientX: 220 });
+  });
+
+  const reportMetric = (label: string) => within(screen.getByRole('dialog', { name: 'Отчёт о тренировке' })).getByText(label).nextElementSibling?.textContent;
+  const openReport = () => fireEvent.click(screen.getByRole('button', { name: 'Отчёт' }));
+  const emitState = (player: MockYouTubePlayer, state: number) => act(() => {
+    player.playerState = state;
+    player.options.events.onStateChange({ target: player, data: state });
+  });
+  const pollAt = async (player: MockYouTubePlayer, time: number) => {
+    player.currentTime = time;
+    await act(async () => { await vi.advanceTimersByTimeAsync(80); });
+  };
+  const naturalRepeat = async (player: MockYouTubePlayer) => {
+    await pollAt(player, 10);
+    await pollAt(player, 19.8);
+    for (const time of [19.84, 19.88, 19.92, 19.96, 20]) await pollAt(player, time);
+  };
+
+  it('reports only PLAYING time across pause, buffering, end and error', async () => {
+    vi.useFakeTimers();
+    const player = await mountPracticeVideo();
+    openReport();
+    expect(reportMetric('Начальная скорость')).toBe('—');
+    emitState(player, 1);
+    await act(async () => { await vi.advanceTimersByTimeAsync(2000); });
+    expect(reportMetric('Активное время')).toBe('00:02');
+    emitState(player, 2);
+    await act(async () => { await vi.advanceTimersByTimeAsync(4000); });
+    emitState(player, 1);
+    await act(async () => { await vi.advanceTimersByTimeAsync(1000); });
+    emitState(player, 3);
+    await act(async () => { await vi.advanceTimersByTimeAsync(5000); });
+    expect(reportMetric('Активное время')).toBe('00:03');
+    emitState(player, 1);
+    await act(async () => { await vi.advanceTimersByTimeAsync(1000); });
+    emitState(player, 0);
+    await act(async () => { await vi.advanceTimersByTimeAsync(3000); });
+    expect(reportMetric('Активное время')).toBe('00:04');
+    emitState(player, 1);
+    await act(async () => { await vi.advanceTimersByTimeAsync(1000); });
+    act(() => player.options.events.onError({ target: player, data: 100 }));
+    await act(async () => { await vi.advanceTimersByTimeAsync(3000); });
+    expect(reportMetric('Активное время')).toBe('00:05');
+  });
+
+  it('reports one natural return despite repeated polls at B and excludes manual seeks', async () => {
+    vi.useFakeTimers();
+    const player = await mountPracticeVideo();
+    player.seekTo.mockImplementation(() => {});
+    emitState(player, 1);
+    await naturalRepeat(player);
+    await pollAt(player, 20);
+    await pollAt(player, 20);
+    openReport();
+    expect(reportMetric('Повторы A–B')).toBe('1');
+    fireEvent.click(screen.getByRole('button', { name: 'Закрыть отчёт' }));
+    await pollAt(player, 10);
+    await pollAt(player, 20);
+    await pollAt(player, 10);
+    fireEvent.change(screen.getByRole('slider', { name: 'Позиция видео' }), { target: { value: '20' } });
+    await pollAt(player, 20);
+    emitState(player, 2);
+    await naturalRepeat(player);
+    openReport();
+    expect(reportMetric('Повторы A–B')).toBe('1');
+  });
+
+  it('reports actual playing speeds and ignores faster paused or buffering speeds', async () => {
+    const player = await mountPracticeVideo();
+    player.currentRate = 0.75;
+    emitState(player, 1);
+    player.currentRate = 1;
+    act(() => player.options.events.onPlaybackRateChange({ target: player }));
+    emitState(player, 2);
+    player.currentRate = 1.25;
+    act(() => player.options.events.onPlaybackRateChange({ target: player }));
+    emitState(player, 3);
+    act(() => player.options.events.onPlaybackRateChange({ target: player }));
+    openReport();
+    expect(reportMetric('Начальная скорость')).toBe('0,75×');
+    expect(reportMetric('Максимальная скорость')).toBe('1×');
+  });
+
+  it('reports only the latest trainer target and reaches it after a natural return', async () => {
+    vi.useFakeTimers();
+    const player = await mountPracticeVideo();
+    fireEvent.click(screen.getByText('Тренажёр скорости'));
+    fireEvent.change(screen.getByRole('combobox', { name: 'Целевая скорость' }), { target: { value: '0.75' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Запустить тренажёр' }));
+    emitState(player, 1);
+    await naturalRepeat(player);
+    openReport();
+    expect(reportMetric('Последняя цель')).toBe('0,75× · достигнута');
+    fireEvent.click(screen.getByRole('button', { name: 'Закрыть отчёт' }));
+    fireEvent.change(screen.getByRole('combobox', { name: 'Целевая скорость' }), { target: { value: '1' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Запустить тренажёр' }));
+    openReport();
+    expect(reportMetric('Последняя цель')).toBe('1× · не достигнута');
+    fireEvent.click(screen.getByRole('button', { name: 'Закрыть отчёт' }));
+    await naturalRepeat(player);
+    openReport();
+    expect(reportMetric('Последняя цель')).toBe('1× · достигнута');
+    expect(reportMetric('Максимальная скорость')).toBe('1×');
+  });
+
+  it.each([500, 1500])('confirms a trainer target after a buffered acknowledgement delayed by %s ms', async (delay) => {
+    vi.useFakeTimers();
+    const player = await mountPracticeVideo();
+    fireEvent.click(screen.getByText('Тренажёр скорости'));
+    fireEvent.change(screen.getByRole('combobox', { name: 'Целевая скорость' }), { target: { value: '0.75' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Запустить тренажёр' }));
+    player.setPlaybackRate.mockImplementation(() => {});
+    emitState(player, 1);
+    await naturalRepeat(player);
+    openReport();
+    expect(reportMetric('Последняя цель')).toBe('0,75× · не достигнута');
+    expect(reportMetric('Максимальная скорость')).toBe('0,5×');
+    // Seeking to A can buffer before YouTube acknowledges the rate change.
+    emitState(player, 3);
+    await act(async () => { await vi.advanceTimersByTimeAsync(delay); });
+    player.currentRate = 0.75;
+    act(() => player.options.events.onPlaybackRateChange({ target: player }));
+    expect(reportMetric('Последняя цель')).toBe('0,75× · достигнута');
+    expect(reportMetric('Максимальная скорость')).toBe('0,5×');
+    emitState(player, 1);
+    expect(reportMetric('Максимальная скорость')).toBe('0,75×');
+  });
+
+  it.each([1, 1.25])('keeps a trainer targeting %s active when an earlier manual rate command is acknowledged', async (target) => {
+    vi.useFakeTimers();
+    const player = await mountPracticeVideo();
+    player.setPlaybackRate.mockImplementation(() => {});
+    fireEvent.click(screen.getByRole('button', { name: /0.5×/ }));
+    fireEvent.click(screen.getByText('Тренажёр скорости'));
+    if (target === 1.25) fireEvent.change(screen.getByRole('combobox', { name: 'Целевая скорость' }), { target: { value: '1.25' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Запустить тренажёр' }));
+    expect(screen.getByRole('button', { name: 'Остановить тренажёр' })).toBeTruthy();
+    emitState(player, 1);
+    await act(async () => { await vi.advanceTimersByTimeAsync(1500); });
+    player.currentRate = 0.75;
+    act(() => player.options.events.onPlaybackRateChange({ target: player }));
+    expect(screen.getByRole('button', { name: 'Остановить тренажёр' })).toBeTruthy();
+    expect(screen.getByRole('button', { name: /0.75×/ })).toBeTruthy();
+    openReport();
+    expect(reportMetric('Последняя цель')).toBe(target === 1 ? '1× · не достигнута' : '1,25× · не достигнута');
+    expect(reportMetric('Максимальная скорость')).toBe('0,75×');
+  });
+
+  const requestUnconfirmedTarget = async (player: MockYouTubePlayer) => {
+    fireEvent.click(screen.getByText('Тренажёр скорости'));
+    fireEvent.change(screen.getByRole('combobox', { name: 'Целевая скорость' }), { target: { value: '0.75' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Запустить тренажёр' }));
+    player.setPlaybackRate.mockImplementation(() => {});
+    emitState(player, 1);
+    await naturalRepeat(player);
+    emitState(player, 3);
+  };
+
+  it('rejects a pending target acknowledgement after report reset', async () => {
+    vi.useFakeTimers();
+    const player = await mountPracticeVideo();
+    await requestUnconfirmedTarget(player);
+    openReport();
+    fireEvent.click(screen.getByRole('button', { name: 'Сбросить отчёт' }));
+    player.currentRate = 0.75;
+    act(() => player.options.events.onPlaybackRateChange({ target: player }));
+    expect(reportMetric('Последняя цель')).toBe('—');
+    expect(reportMetric('Максимальная скорость')).toBe('—');
+    emitState(player, 1);
+    expect(reportMetric('Последняя цель')).toBe('—');
+    expect(reportMetric('Максимальная скорость')).toBe('0,75×');
+  });
+
+  it.each(['manual speed', 'new target', 'seek', 'loop change', 'settings reset'])('rejects a pending target acknowledgement after %s', async (action) => {
+    vi.useFakeTimers();
+    const player = await mountPracticeVideo();
+    await requestUnconfirmedTarget(player);
+    if (action === 'manual speed') fireEvent.click(screen.getByRole('button', { name: /0.75×/ }));
+    if (action === 'new target') fireEvent.change(screen.getByRole('combobox', { name: 'Целевая скорость' }), { target: { value: '1.25' } });
+    if (action === 'seek') fireEvent.change(screen.getByRole('slider', { name: 'Позиция видео' }), { target: { value: '12' } });
+    if (action === 'loop change') fireEvent.click(screen.getByRole('button', { name: 'ОЧИСТИТЬ' }));
+    if (action === 'settings reset') fireEvent.click(screen.getByRole('button', { name: 'Сбросить' }));
+    player.currentRate = 0.75;
+    act(() => player.options.events.onPlaybackRateChange({ target: player }));
+    openReport();
+    expect(reportMetric('Последняя цель')).toBe('0,75× · не достигнута');
+    expect(reportMetric('Максимальная скорость')).toBe('0,5×');
+    if (action === 'new target') {
+      fireEvent.click(screen.getByRole('button', { name: 'Закрыть отчёт' }));
+      fireEvent.click(screen.getByRole('button', { name: 'Запустить тренажёр' }));
+      act(() => player.options.events.onPlaybackRateChange({ target: player }));
+      openReport();
+      expect(reportMetric('Последняя цель')).toBe('1,25× · не достигнута');
+    }
+  });
+
+  it('invalidates a pending trainer target when the native player reports a different rate', async () => {
+    vi.useFakeTimers();
+    const player = await mountPracticeVideo();
+    await requestUnconfirmedTarget(player);
+    player.currentRate = 1;
+    act(() => player.options.events.onPlaybackRateChange({ target: player }));
+    player.currentRate = 0.75;
+    act(() => player.options.events.onPlaybackRateChange({ target: player }));
+    openReport();
+    expect(reportMetric('Последняя цель')).toBe('0,75× · не достигнута');
+  });
+
+  it('rejects an old player target acknowledgement after video replacement and a new target', async () => {
+    vi.useFakeTimers();
+    const player = await mountPracticeVideo();
+    await requestUnconfirmedTarget(player);
+    localStorage.setItem('practice:oHg5SJYRHA0', JSON.stringify({ speed: 0.5, loopA: 10, loopB: 20 }));
+    fireEvent.change(screen.getByLabelText('ССЫЛКА НА ВИДЕО'), { target: { value: 'https://youtu.be/oHg5SJYRHA0' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Заменить видео' }));
+    const replacement = MockYouTubePlayer.instances[1];
+    act(() => replacement.options.events.onReady({ target: replacement }));
+    fireEvent.change(screen.getByRole('combobox', { name: 'Целевая скорость' }), { target: { value: '0.75' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Запустить тренажёр' }));
+    player.currentRate = 0.75;
+    act(() => player.options.events.onPlaybackRateChange({ target: player }));
+    openReport();
+    expect(reportMetric('Последняя цель')).toBe('0,75× · не достигнута');
+    expect(reportMetric('Начальная скорость')).toBe('—');
+  });
+
+  it('resets report counters while continuing playback and the active trainer without saving settings', async () => {
+    vi.useFakeTimers();
+    const player = await mountPracticeVideo();
+    fireEvent.click(screen.getByText('Тренажёр скорости'));
+    fireEvent.change(screen.getByRole('combobox', { name: 'Целевая скорость' }), { target: { value: '1' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Запустить тренажёр' }));
+    emitState(player, 1);
+    await naturalRepeat(player);
+    await act(async () => { await vi.advanceTimersByTimeAsync(3000); });
+    const saved = localStorage.getItem('practice:dQw4w9WgXcQ');
+    const storageWrite = vi.spyOn(Storage.prototype, 'setItem');
+    try {
+      openReport();
+      fireEvent.click(screen.getByRole('button', { name: 'Сбросить отчёт' }));
+      expect(reportMetric('Повторы A–B')).toBe('0');
+      expect(reportMetric('Активное время')).toBe('00:00');
+      expect(reportMetric('Начальная скорость')).toBe('0,75×');
+      expect(reportMetric('Максимальная скорость')).toBe('0,75×');
+      expect(reportMetric('Последняя цель')).toBe('1× · не достигнута');
+      expect(screen.getByRole('button', { name: 'Остановить тренажёр' })).toBeTruthy();
+      expect(player.playerState).toBe(1);
+      expect(player.pauseVideo).not.toHaveBeenCalled();
+      expect(storageWrite).not.toHaveBeenCalled();
+      expect(localStorage.getItem('practice:dQw4w9WgXcQ')).toBe(saved);
+    } finally { storageWrite.mockRestore(); }
+    await act(async () => { await vi.advanceTimersByTimeAsync(1000); });
+    expect(reportMetric('Активное время')).toBe('00:01');
+    fireEvent.click(screen.getByRole('button', { name: 'Закрыть отчёт' }));
+    await naturalRepeat(player);
+    openReport();
+    expect(reportMetric('Последняя цель')).toBe('1× · достигнута');
+    expect(reportMetric('Повторы A–B')).toBe('1');
+  });
+
+  it.each([2, 3])('leaves reset speed metrics empty in player state %s until PLAYING', async (state) => {
+    const player = await mountPracticeVideo();
+    emitState(player, 1);
+    emitState(player, state);
+    openReport();
+    fireEvent.click(screen.getByRole('button', { name: 'Сбросить отчёт' }));
+    expect(reportMetric('Начальная скорость')).toBe('—');
+    expect(reportMetric('Максимальная скорость')).toBe('—');
+    player.currentRate = 0.75;
+    emitState(player, 1);
+    expect(reportMetric('Начальная скорость')).toBe('0,75×');
+    expect(reportMetric('Максимальная скорость')).toBe('0,75×');
+  });
+
+  it('closes and clears the report on video change and ignores old player events', async () => {
+    const player = await mountPracticeVideo();
+    emitState(player, 1);
+    openReport();
+    fireEvent.change(screen.getByLabelText('ССЫЛКА НА ВИДЕО'), { target: { value: 'https://youtu.be/oHg5SJYRHA0' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Заменить видео' }));
+    expect(screen.queryByRole('dialog')).toBeNull();
+    const replacement = MockYouTubePlayer.instances[1];
+    act(() => replacement.options.events.onReady({ target: replacement }));
+    emitState(player, 1);
+    openReport();
+    expect(reportMetric('Повторы A–B')).toBe('0');
+    expect(reportMetric('Активное время')).toBe('00:00');
+    expect(reportMetric('Начальная скорость')).toBe('—');
+    expect(reportMetric('Последняя цель')).toBe('—');
+  });
+
+  it('contains report focus and restores it without pausing playback', async () => {
+    const player = await mountPracticeVideo();
+    emitState(player, 1);
+    const trigger = screen.getByRole('button', { name: 'Отчёт' });
+    trigger.focus();
+    openReport();
+    const close = screen.getByRole('button', { name: 'Закрыть отчёт' });
+    const reset = screen.getByRole('button', { name: 'Сбросить отчёт' });
+    expect(document.activeElement).toBe(close);
+    fireEvent.keyDown(close, { key: 'Tab', shiftKey: true });
+    expect(document.activeElement).toBe(reset);
+    fireEvent.keyDown(reset, { key: 'Tab' });
+    expect(document.activeElement).toBe(close);
+    fireEvent.keyDown(close, { key: 'Escape' });
+    expect(screen.queryByRole('dialog')).toBeNull();
+    expect(document.activeElement).toBe(trigger);
+    openReport();
+    fireEvent.click(screen.getByRole('button', { name: 'Закрыть отчёт' }));
+    expect(screen.queryByRole('dialog')).toBeNull();
+    expect(player.pauseVideo).not.toHaveBeenCalled();
+    expect(player.playerState).toBe(1);
   });
 
   it('steps once per completed A/B pass and stops after reaching the chosen speed', async () => {

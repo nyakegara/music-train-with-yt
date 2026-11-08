@@ -24,7 +24,7 @@ The NSIS installer is written to `release/`. `npm run dist:win` rejects a missin
 
 ## Publish a Windows alpha
 
-Push a `vX.Y.Z` tag that matches the version in `package.json`. The Windows release workflow runs the tests, builds the x64 NSIS installer with the production eligibility Worker, and publishes the installer as a GitHub prerelease for `0.x` and hyphenated versions. For example, after merging the release changes, tag the `0.1.2` release commit with `v0.1.2`. The installer is unsigned; Windows may show an unknown publisher warning.
+Push a `vX.Y.Z` tag that matches the version in `package.json`. The Windows release workflow runs the tests, builds the x64 NSIS installer with the production eligibility Worker, and publishes the installer as a GitHub prerelease for `0.x` and hyphenated versions. For example, after merging the release changes, tag the `0.1.3` release commit with `v0.1.3`. The installer is unsigned; Windows may show an unknown publisher warning.
 
 Published installers are listed under [GitHub Releases](https://github.com/nyakegara/music-train-with-yt/releases).
 
@@ -32,9 +32,19 @@ Published installers are listed under [GitHub Releases](https://github.com/nyake
 
 The app stores BPM, first beat, metronome volume, playback speed, meter, and loop markers locally per video. Named practice segments can save multiple A/B ranges per video; their labels and timestamps stay on this computer. The metronome always opens switched off so it starts only after an explicit user action. You can estimate BPM from a mono or stereo audio file up to 50 MB and 5 minutes; analysis happens locally, and the app stores only the accepted number for the current video. The file is not saved, and audio is never downloaded or extracted from YouTube. First-beat alignment remains manual. Automatic tab transcription is tracked for a future version in the GitHub issues.
 
+### BPM Finder
+
+The optional BPM Finder link opens the external tool in your browser. Click **Скопировать ссылку**, paste it there, then enter the result in the app's BPM field. The site searches video metadata and may return only an estimate; check the tempo by ear. The app does not submit your video link to the tool or verify its estimate.
+
 ### Speed trainer
 
 Open **Тренажёр скорости** in the loop card, choose a supported target above the current speed, then start the trainer. Each completed A/B repeat advances by one playback rate reported by YouTube and stops at the target. The trainer is temporary: changing the loop, video, playback speed, or seeking with the app controls stops it.
+
+### Practice report
+
+Click **Отчёт** beside the settings reset to view completed natural A/B repeats, active PLAYING time (excluding pauses and buffering), actual starting/fastest speed, and the latest speed-trainer target. A target is reached when a natural repeat advances playback to that speed. Opening or closing the report leaves playback running. **Сбросить отчёт** starts fresh counters without changing settings or an active trainer; during playback, the current actual speed starts the new report.
+
+The report uses local player events only, not YouTube Analytics. It lives in memory for the current video and app run: switching videos or restarting the app clears it. Report data is never saved to storage.
 
 ### Meter and keyboard controls
 
