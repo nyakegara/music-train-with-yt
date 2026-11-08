@@ -505,6 +505,57 @@ describe('YouTube player lifecycle', () => {
     expect(player.playVideo).not.toHaveBeenCalled();
   });
 
+  it('keeps an estimated pulse as a suggestion until the user explicitly applies it', async () => {
+    await mountPracticeVideo(7.25);
+    const file = new File(['local audio'], 'track.mp3', { type: 'audio/mpeg' });
+    estimateBpmFromFile.mockResolvedValue({ bpm: 123, confidence: 0.92, alternatives: [], firstPulseSeconds: 0.375, phaseConfidence: 0.9 });
+    fireEvent.change(screen.getByLabelText('Выбрать аудиофайл для определения BPM'), { target: { files: [file] } });
+
+    const applyButton = await screen.findByRole('button', { name: 'Применить начало пульса' });
+    expect(screen.getByText(/это начало устойчивого пульса, не обязательно первая доля такта/i)).toBeTruthy();
+    expect(JSON.parse(localStorage.getItem('practice:dQw4w9WgXcQ')!).firstBeat).toBe(7.25);
+
+    fireEvent.click(applyButton);
+    expect(JSON.parse(localStorage.getItem('practice:dQw4w9WgXcQ')!).firstBeat).toBe(0.375);
+  });
+
+  it('does not offer a first-pulse suggestion when phase confidence is low', async () => {
+    await mountPracticeVideo(7.25);
+    const file = new File(['local audio'], 'track.mp3', { type: 'audio/mpeg' });
+    estimateBpmFromFile.mockResolvedValue({ bpm: 123, confidence: 0.92, alternatives: [], firstPulseSeconds: 0.375, phaseConfidence: 0.2 });
+    fireEvent.change(screen.getByLabelText('Выбрать аудиофайл для определения BPM'), { target: { files: [file] } });
+
+    await waitFor(() => expect(JSON.parse(localStorage.getItem('practice:dQw4w9WgXcQ')!).bpm).toBe(123));
+    expect(screen.queryByRole('button', { name: 'Применить начало пульса' })).toBeNull();
+    expect(JSON.parse(localStorage.getItem('practice:dQw4w9WgXcQ')!).firstBeat).toBe(7.25);
+  });
+
+  it('explains and disables a pulse suggestion beyond the YouTube video duration', async () => {
+    await mountPracticeVideo(7.25);
+    const file = new File(['local audio'], 'track.mp3', { type: 'audio/mpeg' });
+    estimateBpmFromFile.mockResolvedValue({ bpm: 123, confidence: 0.92, alternatives: [], firstPulseSeconds: 190, phaseConfidence: 0.9 });
+    fireEvent.change(screen.getByLabelText('Выбрать аудиофайл для определения BPM'), { target: { files: [file] } });
+
+    const applyButton = await screen.findByRole('button', { name: 'Применить начало пульса' });
+    expect((applyButton as HTMLButtonElement).disabled).toBe(true);
+    expect(screen.getByText(/позже конца видео/i)).toBeTruthy();
+    expect(JSON.parse(localStorage.getItem('practice:dQw4w9WgXcQ')!).firstBeat).toBe(7.25);
+  });
+
+  it('clears a first-pulse suggestion when the active video changes', async () => {
+    await mountPracticeVideo(7.25);
+    const file = new File(['local audio'], 'track.mp3', { type: 'audio/mpeg' });
+    estimateBpmFromFile.mockResolvedValue({ bpm: 123, confidence: 0.92, alternatives: [], firstPulseSeconds: 0.375, phaseConfidence: 0.9 });
+    fireEvent.change(screen.getByLabelText('Выбрать аудиофайл для определения BPM'), { target: { files: [file] } });
+    await screen.findByRole('button', { name: 'Применить начало пульса' });
+
+    fireEvent.change(screen.getByLabelText('ССЫЛКА НА ВИДЕО'), { target: { value: 'https://youtu.be/oHg5SJYRHA0' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Заменить видео' }));
+    await waitFor(() => expect(MockYouTubePlayer.instances).toHaveLength(2));
+    expect(screen.queryByRole('button', { name: 'Применить начало пульса' })).toBeNull();
+    expect(JSON.parse(localStorage.getItem('practice:dQw4w9WgXcQ')!).firstBeat).toBe(7.25);
+  });
+
   it.each(['draft', 'error'])('resets manual BPM %s when applying a candidate equal to the saved BPM', async (state) => {
     await mountPracticeVideo(7.25);
     estimateBpmFromFile.mockResolvedValue({ bpm: 100, confidence: 0.34, alternatives: [50] });

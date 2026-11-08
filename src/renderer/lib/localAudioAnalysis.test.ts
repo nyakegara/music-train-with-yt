@@ -56,7 +56,7 @@ beforeEach(() => {
     Object.assign(this, { decodeAudioData: decodeMock, close: closeMock });
   });
   vi.stubGlobal('AudioContext', audioContextConstructor);
-  estimateMock.mockReturnValue({ bpm: 120, confidence: 0.9, alternatives: [] });
+  estimateMock.mockReturnValue({ bpm: 120, confidence: 0.9, alternatives: [], firstPulseSeconds: null, phaseConfidence: 0 });
 });
 
 afterEach(() => {
@@ -75,7 +75,7 @@ describe('estimateBpmFromFile', () => {
     expect(samples).toBeInstanceOf(Float32Array);
     expect(samples.length).toBe(55_125);
     expect(samples[0]).toBeCloseTo(0.3);
-    expect(result).toEqual({ bpm: 120, confidence: 0.9, alternatives: [] });
+    expect(result).toEqual({ bpm: 120, confidence: 0.9, alternatives: [], firstPulseSeconds: null, phaseConfidence: 0 });
     expect(closeMock).toHaveBeenCalledOnce();
     expect(closeMock.mock.invocationCallOrder[0]).toBeLessThan(estimateMock.mock.invocationCallOrder[0]);
   });

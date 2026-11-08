@@ -1,2 +1,0 @@
-import { contextBridge, ipcRenderer } from 'electron';
-contextBridge.exposeInMainWorld('musicTrain',{version:()=>ipcRenderer.invoke('app:version'),copyYouTubeUrl:(videoId:string)=>ipcRenderer.invoke('app:copy-youtube-url',videoId)});
