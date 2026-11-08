@@ -38,9 +38,9 @@
 - Consumes: existing `settings.bpm`, `update({bpm})`, and `saveSettings` effect.
 - Produces: an input labeled `Темп BPM` that commits valid integer BPM on Enter or blur and rejects invalid values without changing persisted settings.
 
-- [ ] **Step 1: Write failing tests** for replacing the BPM with 128 and committing with Enter, committing on blur, rejecting empty/fractional/39/241 values accessibly, syncing to a different video's stored BPM, and preserving firstBeat.
-- [ ] **Step 2: Run the focused tests and confirm they fail** because the directly labeled BPM field does not exist yet.
-- [ ] **Step 3: Implement draft state and validation** in `App.tsx`; sync the draft after BPM or video changes; style the input and error message in `styles.css`.
-- [ ] **Step 4: Run the focused tests and full suite.** Expected: all tests pass; only valid commits update the saved BPM.
-- [ ] **Step 5: Run production build and diff checks.** Expected: TypeScript/Vite build succeeds and `git diff --check` is clean.
-- [ ] **Step 6: Commit** as `feat: allow direct bpm entry`.
+- [x] **Step 1: Write failing tests** for replacing the BPM with 128 and committing with Enter, committing on blur, rejecting empty/fractional/39/241 values accessibly, syncing to a different video's stored BPM, and preserving firstBeat.
+- [x] **Step 2: Run the focused tests and confirm they fail** because the directly labeled BPM field does not exist yet.
+- [x] **Step 3: Implement draft state and validation** in `App.tsx`; sync the draft after BPM or video changes; style the input and error message in `styles.css`.
+- [x] **Step 4: Run the focused tests and full suite.** Expected: all tests pass; only valid commits update the saved BPM.
+- [x] **Step 5: Run production build and diff checks.** Expected: TypeScript/Vite build succeeds and `git diff --check` is clean.
+- [x] **Step 6: Commit** as `feat: allow direct bpm entry`.
