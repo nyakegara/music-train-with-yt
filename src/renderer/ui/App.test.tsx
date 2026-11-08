@@ -446,6 +446,25 @@ describe('YouTube player lifecycle', () => {
     expect(player.playVideo).not.toHaveBeenCalled();
   });
 
+  it.each(['draft', 'error'])('resets manual BPM %s when applying a candidate equal to the saved BPM', async (state) => {
+    await mountPracticeVideo(7.25);
+    estimateBpmFromFile.mockResolvedValue({ bpm: 100, confidence: 0.34, alternatives: [50] });
+    const file = new File(['local audio'], 'track.mp3', { type: 'audio/mpeg' });
+    fireEvent.change(screen.getByLabelText('Выбрать аудиофайл для определения BPM'), { target: { files: [file] } });
+    await screen.findByRole('combobox', { name: 'Подтвердить BPM' });
+    const input = screen.getByRole('textbox', { name: 'Темп BPM' }) as HTMLInputElement;
+    fireEvent.change(input, { target: { value: state === 'draft' ? '135' : '39' } });
+    if (state === 'error') {
+      fireEvent.keyDown(input, { key: 'Enter' });
+      expect(screen.getByRole('alert')).toBeTruthy();
+    }
+    fireEvent.click(screen.getByRole('button', { name: 'Применить BPM' }));
+    expect(input.value).toBe('100');
+    expect(input.getAttribute('aria-invalid')).toBe('false');
+    expect(screen.queryByRole('alert')).toBeNull();
+    expect(JSON.parse(localStorage.getItem('practice:dQw4w9WgXcQ')!)).toMatchObject({ bpm: 100, firstBeat: 7.25 });
+  });
+
   it('asks before applying an ambiguous half-time candidate', async () => {
     await mountPracticeVideo();
     const file = new File(['local audio'], 'track.mp3', { type: 'audio/mpeg' });
