@@ -671,6 +671,19 @@ describe('YouTube player lifecycle', () => {
     expect(screen.getByRole('button', { name: 'Сдвинуть первую долю на 10 мс позже' }).hasAttribute('disabled')).toBe(true);
   });
 
+  it('disables a forward nudge when the marked first beat is the fractional video endpoint', async () => {
+    const videoEnd = 180.0004;
+    localStorage.setItem('practice:dQw4w9WgXcQ', JSON.stringify({ bpm: 100, firstBeat: videoEnd, speed: 0.5, loopA: 10, loopB: 20, metronomeEnabled: false, volume: 0.35 }));
+    render(<App />);
+    await act(async () => { window.onYouTubeIframeAPIReady?.(); });
+    fireEvent.change(screen.getByLabelText('ССЫЛКА НА ВИДЕО'), { target: { value: 'https://youtu.be/dQw4w9WgXcQ' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Загрузить видео' }));
+    const player = MockYouTubePlayer.instances[0];
+    vi.spyOn(player, 'getDuration').mockReturnValue(videoEnd);
+    act(() => player.options.events.onReady({ target: player }));
+    expect(screen.getByRole('button', { name: 'Сдвинуть первую долю на 10 мс позже' }).hasAttribute('disabled')).toBe(true);
+  });
+
   it('keeps first-beat adjustment disabled before player readiness', () => {
     render(<App />);
     expect(screen.getByRole('button', { name: 'Сдвинуть первую долю на 10 мс раньше' }).hasAttribute('disabled')).toBe(true);
